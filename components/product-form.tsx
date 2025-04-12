@@ -3,12 +3,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Product } from "@/types/product";
 import { 
   getProduct, 
-  addProduct, 
+  addProduct as createProduct, 
   updateProduct, 
-  uploadProductImages,
-  Product
+  uploadProductImages
 } from "@/lib/firebase/products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,7 +120,7 @@ export default function ProductForm({ productId }: ProductFormProps) {
         });
       } else {
         // Add new product
-        await addProduct(productData);
+        await createProduct(productData);
         toast({
           title: "Success",
           description: "Product added successfully",
