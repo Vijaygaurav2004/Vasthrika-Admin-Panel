@@ -16,6 +16,14 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
+        if (!supabase) {
+          setStats({
+            totalProducts: 0,
+            totalCategories: 0,
+          });
+          return;
+        }
+        
         // Get total products count
         const { count: productsCount } = await supabase
           .from('products')

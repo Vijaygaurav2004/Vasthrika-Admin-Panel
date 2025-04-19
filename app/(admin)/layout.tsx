@@ -5,17 +5,30 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
 
-  // If not logged in, redirect to login page
-  if (!user) {
-    router.push("/login");
-    return null;
-  }
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Wait until component is mounted to access browser APIs
+  useEffect(() => {
+    if (mounted && !user) {
+      router.push("/login");
+    }
+  }, [mounted, user, router]);
+
+  // Don't render anything until mounted
+  if (!mounted) return null;
+
+  // If not logged in, don't render anything (redirect is handled in useEffect)
+  if (!user) return null;
 
   const handleLogout = async () => {
     await logout();

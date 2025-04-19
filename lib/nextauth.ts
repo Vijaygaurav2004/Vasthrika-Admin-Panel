@@ -1,7 +1,6 @@
 import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { adminAuth } from "./lib/firebase/admin";
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -18,19 +17,6 @@ export const authConfig: NextAuthConfig = {
         if (!adminEmails.includes(user.email!)) {
           return false;
         }
-
-        // Create or update the user in Firebase Auth
-        try {
-          await adminAuth.getUserByEmail(user.email!);
-        } catch (error) {
-          // If the user doesn't exist in Firebase, create them
-          await adminAuth.createUser({
-            email: user.email!,
-            displayName: user.name!,
-            photoURL: user.image!,
-          });
-        }
-
         return true;
       } catch (error) {
         console.error('Error in signIn callback:', error);
@@ -49,4 +35,4 @@ export const authConfig: NextAuthConfig = {
   },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig); 
+export const { handlers, auth, signIn: nextAuthSignIn, signOut: nextAuthSignOut } = NextAuth(authConfig); 

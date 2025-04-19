@@ -34,6 +34,12 @@ export default function CategoriesPage() {
   const fetchCategories = async () => {
     try {
       setLoading(true);
+      if (!supabase) {
+        setCategories([]);
+        setLoading(false);
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('categories')
         .select('*')
@@ -64,6 +70,15 @@ export default function CategoriesPage() {
     }
 
     try {
+      if (!supabase) {
+        toast({
+          title: "Error",
+          description: "Database connection not available",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const { error } = await supabase
         .from('categories')
         .insert({ name: newCategory });
@@ -98,6 +113,15 @@ export default function CategoriesPage() {
     }
 
     try {
+      if (!supabase) {
+        toast({
+          title: "Error",
+          description: "Database connection not available",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const { error } = await supabase
         .from('categories')
         .update({ name: editingCategory.name })
@@ -125,6 +149,15 @@ export default function CategoriesPage() {
   const handleDeleteCategory = async (id: string) => {
     if (confirm("Are you sure you want to delete this category?")) {
       try {
+        if (!supabase) {
+          toast({
+            title: "Error",
+            description: "Database connection not available",
+            variant: "destructive",
+          });
+          return;
+        }
+        
         const { error } = await supabase
           .from('categories')
           .delete()

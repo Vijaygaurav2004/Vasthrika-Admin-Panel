@@ -1,9 +1,11 @@
-import { supabase } from './client';
+import { supabase, isSupabaseClient } from './client';
 import { Product } from '@/types/product';
 
 // Get all products
 export async function getProducts(categoryFilter?: string) {
   try {
+    if (!isSupabaseClient(supabase)) return [];
+    
     let query = supabase
       .from('products')
       .select('*')
@@ -29,6 +31,8 @@ export async function getProducts(categoryFilter?: string) {
 // Get a single product
 export async function getProduct(id: string) {
   try {
+    if (!isSupabaseClient(supabase)) throw new Error("Supabase client not initialized");
+    
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -53,12 +57,15 @@ export async function getProduct(id: string) {
 // Upload product images
 export async function uploadProductImages(files: File[]) {
   try {
+    if (!isSupabaseClient(supabase)) throw new Error("Supabase client not initialized");
+    const client = supabase;
+    
     const uploadPromises = files.map(async (file) => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `products/${fileName}`;
       
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await client.storage
         .from('products')
         .upload(filePath, file);
       
@@ -66,7 +73,7 @@ export async function uploadProductImages(files: File[]) {
         throw uploadError;
       }
       
-      const { data } = supabase.storage
+      const { data } = client.storage
         .from('products')
         .getPublicUrl(filePath);
       
@@ -83,6 +90,8 @@ export async function uploadProductImages(files: File[]) {
 // Add a new product
 export async function addProduct(product: Omit<Product, "id">) {
   try {
+    if (!isSupabaseClient(supabase)) throw new Error("Supabase client not initialized");
+    
     const { data, error } = await supabase
       .from('products')
       .insert({
@@ -107,6 +116,8 @@ export async function addProduct(product: Omit<Product, "id">) {
 // Update a product
 export async function updateProduct(id: string, updates: Partial<Product>) {
   try {
+    if (!isSupabaseClient(supabase)) throw new Error("Supabase client not initialized");
+    
     const { data, error } = await supabase
       .from('products')
       .update({
@@ -131,8 +142,11 @@ export async function updateProduct(id: string, updates: Partial<Product>) {
 // Delete a product
 export async function deleteProduct(id: string, images: string[] = []) {
   try {
+    if (!isSupabaseClient(supabase)) throw new Error("Supabase client not initialized");
+    const client = supabase;
+    
     // First, delete the product document
-    const { error } = await supabase
+    const { error } = await client
       .from('products')
       .delete()
       .eq('id', id);
@@ -150,7 +164,7 @@ export async function deleteProduct(id: string, images: string[] = []) {
         const filePath = url.split('/products/')[1];
         if (!filePath) return;
         
-        const { error: deleteError } = await supabase.storage
+        const { error: deleteError } = await client.storage
           .from('products')
           .remove([`products/${filePath}`]);
         
