@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProduct, updateProduct } from "@/lib/firebase/products";
+import { getProduct, updateProduct } from "@/lib/supabase/products";
 
 export async function GET(
   request: NextRequest,

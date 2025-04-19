@@ -2,18 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  serverTimestamp, 
-  orderBy, 
-  query 
-} from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -29,7 +18,7 @@ import { toast } from "@/components/ui/use-toast";
 type Category = {
   id: string;
   name: string;
-  createdAt?: any;
+  created_at?: string;
 };
 
 export default function CategoriesPage() {
@@ -39,34 +28,24 @@ export default function CategoriesPage() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   useEffect(() => {
-    console.log("Categories component mounted - fetching categories");
     fetchCategories();
   }, []);
 
   const fetchCategories = async () => {
-    console.log("Fetching categories...");
     try {
       setLoading(true);
-      const categoriesQuery = query(
-        collection(db, "categories"),
-        orderBy("createdAt", "desc")
-      );
-      console.log("Executing Firestore query...");
-      const querySnapshot = await getDocs(categoriesQuery);
-      console.log(`Got ${querySnapshot.docs.length} categories from Firestore`);
-      
-      const categoriesList = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Category[];
-      
-      console.log("Categories list:", categoriesList);
-      setCategories(categoriesList);
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCategories(data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
       toast({
         title: "Error",
-        description: "Failed to load categories: " + (error instanceof Error ? error.message : String(error)),
+        description: "Failed to load categories",
         variant: "destructive",
       });
     } finally {
@@ -75,7 +54,6 @@ export default function CategoriesPage() {
   };
 
   const handleAddCategory = async () => {
-    console.log("Adding new category:", newCategory);
     if (!newCategory.trim()) {
       toast({
         title: "Error",
@@ -86,13 +64,11 @@ export default function CategoriesPage() {
     }
 
     try {
-      console.log("Creating new category document in Firestore...");
-      // Create a new document in the "categories" collection
-      const docRef = await addDoc(collection(db, "categories"), {
-        name: newCategory,
-        createdAt: serverTimestamp(),
-      });
-      console.log("Category added successfully with ID:", docRef.id);
+      const { error } = await supabase
+        .from('categories')
+        .insert({ name: newCategory });
+
+      if (error) throw error;
 
       toast({
         title: "Success",
@@ -100,12 +76,12 @@ export default function CategoriesPage() {
       });
 
       setNewCategory("");
-      fetchCategories(); // Refresh the categories list
+      fetchCategories();
     } catch (error) {
       console.error("Error adding category:", error);
       toast({
         title: "Error",
-        description: "Failed to add category: " + (error instanceof Error ? error.message : String(error)),
+        description: "Failed to add category",
         variant: "destructive",
       });
     }
@@ -122,12 +98,12 @@ export default function CategoriesPage() {
     }
 
     try {
-      console.log("Updating category:", editingCategory);
-      const categoryRef = doc(db, "categories", editingCategory.id);
-      await updateDoc(categoryRef, {
-        name: editingCategory.name,
-      });
-      console.log("Category updated successfully");
+      const { error } = await supabase
+        .from('categories')
+        .update({ name: editingCategory.name })
+        .eq('id', editingCategory.id);
+
+      if (error) throw error;
 
       toast({
         title: "Success",
@@ -140,7 +116,7 @@ export default function CategoriesPage() {
       console.error("Error updating category:", error);
       toast({
         title: "Error",
-        description: "Failed to update category: " + (error instanceof Error ? error.message : String(error)),
+        description: "Failed to update category",
         variant: "destructive",
       });
     }
@@ -149,28 +125,30 @@ export default function CategoriesPage() {
   const handleDeleteCategory = async (id: string) => {
     if (confirm("Are you sure you want to delete this category?")) {
       try {
-        console.log("Deleting category:", id);
-        await deleteDoc(doc(db, "categories", id));
-        console.log("Category deleted successfully");
-        
+        const { error } = await supabase
+          .from('categories')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+
         toast({
           title: "Success",
           description: "Category deleted successfully",
         });
-        
+
         fetchCategories();
       } catch (error) {
         console.error("Error deleting category:", error);
         toast({
           title: "Error",
-          description: "Failed to delete category: " + (error instanceof Error ? error.message : String(error)),
+          description: "Failed to delete category",
           variant: "destructive",
         });
       }
     }
   };
 
-  // For form submission via keyboard (pressing Enter)
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();

@@ -1,18 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStorage } from 'firebase-admin/storage';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-
-// Initialize Firebase Admin if not already initialized
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  });
-}
+import { supabase } from '@/lib/supabase/client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,31 +13,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert File to Buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
-    
     // Generate a unique filename
-    const timestamp = Date.now();
-    const filename = `${timestamp}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+    const filePath = `products/${fileName}`;
     
-    // Get storage bucket
-    const bucket = getStorage().bucket();
-    const fileRef = bucket.file(`products/${filename}`);
+    // Convert File to ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
     
-    // Upload file
-    await fileRef.save(buffer, {
-      metadata: {
+    // Upload file to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('products')
+      .upload(filePath, arrayBuffer, {
         contentType: file.type,
-      },
-    });
+      });
+    
+    if (uploadError) {
+      console.error('Error uploading file:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to upload file' },
+        { status: 500 }
+      );
+    }
     
     // Get public URL
-    const [url] = await fileRef.getSignedUrl({
-      action: 'read',
-      expires: '03-01-2500', // Far future expiration
-    });
+    const { data } = supabase.storage
+      .from('products')
+      .getPublicUrl(filePath);
     
-    return NextResponse.json({ url });
+    return NextResponse.json({ url: data.publicUrl });
   } catch (error) {
     console.error('Error uploading file:', error);
     return NextResponse.json(

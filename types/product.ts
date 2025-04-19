@@ -11,6 +11,6 @@ export interface Product {
     dimensions?: string;
     weight?: string;
     images: string[]; // This should be "images" as an array, not "imageUrl"
-    createdAt?: any;
-    updatedAt?: any;
+    created_at?: string;
+    updated_at?: string;
   }

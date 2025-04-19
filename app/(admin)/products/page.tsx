@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getProducts, deleteProduct } from "@/lib/firebase/products";
+import { getProducts, deleteProduct } from "@/lib/supabase/products";
 import { Product } from "@/types/product";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

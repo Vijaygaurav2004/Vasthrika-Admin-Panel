@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { Product } from "@/types/product";
 import { 
   getProduct, 
-  addProduct as createProduct, 
+  addProduct, 
   updateProduct, 
   uploadProductImages
-} from "@/lib/firebase/products";
+} from "@/lib/supabase/products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -120,7 +120,7 @@ export default function ProductForm({ productId }: ProductFormProps) {
         });
       } else {
         // Add new product
-        await createProduct(productData);
+        await addProduct(productData);
         toast({
           title: "Success",
           description: "Product added successfully",
