@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
+import DragDropUpload from "@/components/drag-drop-upload";
 
 interface ProductFormProps {
   productId?: string;
@@ -37,7 +38,6 @@ export default function ProductForm({ productId }: ProductFormProps) {
   });
 
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
 
   // Fetch existing product if in edit mode
@@ -81,10 +81,8 @@ export default function ProductForm({ productId }: ProductFormProps) {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setImageFiles(Array.from(e.target.files));
-    }
+  const handleImageChange = (files: File[]) => {
+    setImageFiles(files);
   };
 
   const handleRemoveExistingImage = (imageUrl: string) => {
@@ -157,24 +155,24 @@ export default function ProductForm({ productId }: ProductFormProps) {
         <div className="space-y-2">
           <Label htmlFor="category">Category</Label>
           <select
-  id="category"
-  name="category"
-  value={product.category}
-  onChange={handleInputChange}
-  className="w-full rounded-md border border-input bg-background px-3 py-2"
-  required
->
-  <option value="">Select Category</option>
-  {/* Women Categories */}
-  <option value="Silk">Silk</option>
-  <option value="Tissue">Tissue</option>
-  <option value="Ethnic">Ethnic</option>
-  <option value="Fancy">Fancy</option>
-  <option value="Fabric">Fabric</option>
-  {/* Men Categories */}
-  <option value="Dhothi">Dhothi</option>
-  <option value="Fabric">Fabric</option>
-</select>
+            id="category"
+            name="category"
+            value={product.category}
+            onChange={handleInputChange}
+            className="w-full rounded-md border border-input bg-background px-3 py-2"
+            required
+          >
+            <option value="">Select Category</option>
+            {/* Women Categories */}
+            <option value="Silk">Silk</option>
+            <option value="Tissue">Tissue</option>
+            <option value="Ethnic">Ethnic</option>
+            <option value="Fancy">Fancy</option>
+            <option value="Fabric">Fabric</option>
+            {/* Men Categories */}
+            <option value="Dhothi">Dhothi</option>
+            <option value="Fabric">Fabric</option>
+          </select>
         </div>
 
         <div className="space-y-2">
@@ -259,63 +257,19 @@ export default function ProductForm({ productId }: ProductFormProps) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="images">Product Images</Label>
-        <Input
-          id="images"
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={handleImageChange}
+        <Label>Product Images</Label>
+        <DragDropUpload
+          onFilesSelected={handleImageChange}
+          existingImages={existingImages}
+          onRemoveExistingImage={handleRemoveExistingImage}
+          maxFiles={5}
         />
         <p className="text-sm text-gray-500">
           Upload up to 5 images. First image will be the main product image.
         </p>
       </div>
 
-      {/* Preview existing images */}
-      {existingImages.length > 0 && (
-        <div>
-          <Label>Existing Images</Label>
-          <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {existingImages.map((url, index) => (
-              <div key={index} className="relative">
-                <img
-                  src={url}
-                  alt={`Product ${index}`}
-                  className="h-24 w-full rounded-md object-cover"
-                />
-                <button
-                  type="button"
-                  className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white"
-                  onClick={() => handleRemoveExistingImage(url)}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Preview new images */}
-      {imageFiles.length > 0 && (
-        <div>
-          <Label>New Images</Label>
-          <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {Array.from(imageFiles).map((file, index) => (
-              <div key={index} className="relative">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={`New ${index}`}
-                  className="h-24 w-full rounded-md object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-<div className="flex justify-end space-x-4">
+      <div className="flex justify-end space-x-4">
         <Button
           type="button"
           variant="outline"
