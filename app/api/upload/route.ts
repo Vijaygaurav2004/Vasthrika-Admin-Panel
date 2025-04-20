@@ -20,6 +20,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if bucket exists
+    const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
+    if (bucketError) {
+      console.error('Bucket error:', bucketError);
+      return NextResponse.json(
+        { error: 'Failed to access storage' },
+        { status: 500 }
+      );
+    }
+
+    const productsBucket = buckets.find(b => b.name === 'products');
+    if (!productsBucket) {
+      return NextResponse.json(
+        { error: 'Products bucket not found' },
+        { status: 500 }
+      );
+    }
+
     // Generate a unique filename
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
@@ -48,11 +66,18 @@ export async function POST(request: NextRequest) {
       .from('products')
       .getPublicUrl(filePath);
     
+    if (!data?.publicUrl) {
+      return NextResponse.json(
+        { error: 'Failed to get public URL' },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json({ url: data.publicUrl });
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('Error in upload route:', error);
     return NextResponse.json(
-      { error: 'Failed to upload file' },
+      { error: 'Failed to process upload' },
       { status: 500 }
     );
   }

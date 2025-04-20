@@ -30,4 +30,19 @@ on storage.objects for delete
 using (
   bucket_id = 'products'
   and auth.uid() = owner
-); 
+);
+
+-- Allow public access to upload files (for development)
+create policy "Public upload access"
+on storage.objects for insert
+with check ( bucket_id = 'products' );
+
+-- Allow public access to update files (for development)
+create policy "Public update access"
+on storage.objects for update
+using ( bucket_id = 'products' );
+
+-- Allow public access to delete files (for development)
+create policy "Public delete access"
+on storage.objects for delete
+using ( bucket_id = 'products' ); 

@@ -61,28 +61,47 @@ export async function uploadProductImages(files: File[]) {
     const client = supabase;
     
     const uploadPromises = files.map(async (file) => {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-      const filePath = `products/${fileName}`;
-      
-      const { error: uploadError } = await client.storage
-        .from('products')
-        .upload(filePath, file);
-      
-      if (uploadError) {
-        throw uploadError;
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+        
+        // First check if bucket exists
+        const { data: buckets, error: bucketError } = await client.storage.listBuckets();
+        if (bucketError) throw bucketError;
+        
+        const productsBucket = buckets.find(b => b.name === 'products');
+        if (!productsBucket) {
+          throw new Error("Products bucket not found");
+        }
+        
+        const { error: uploadError } = await client.storage
+          .from('products')
+          .upload(filePath, file);
+        
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          throw uploadError;
+        }
+        
+        const { data } = client.storage
+          .from('products')
+          .getPublicUrl(filePath);
+        
+        if (!data?.publicUrl) {
+          throw new Error("Failed to get public URL");
+        }
+        
+        return data.publicUrl;
+      } catch (error) {
+        console.error("Error uploading file:", error);
+        throw error;
       }
-      
-      const { data } = client.storage
-        .from('products')
-        .getPublicUrl(filePath);
-      
-      return data.publicUrl;
     });
     
     return Promise.all(uploadPromises);
   } catch (error) {
-    console.error("Error uploading images:", error);
+    console.error("Error in uploadProductImages:", error);
     throw error;
   }
 }
