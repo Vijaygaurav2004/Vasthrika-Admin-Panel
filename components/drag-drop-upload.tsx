@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 
 interface DragDropUploadProps {
-  onFilesSelected: (files: File[]) => void;
+  onFilesSelected: (files: File[] | ((prevFiles: File[]) => File[])) => void;
   existingImages: string[];
   onRemoveExistingImage: (url: string) => void;
   maxFiles?: number;
@@ -29,14 +29,30 @@ function DragDropUploadClient({
       if (totalFiles > maxFiles) {
         toast({
           title: "Error",
-          description: `You can only upload up to ${maxFiles} images`,
+          description: `You can only upload up to ${maxFiles} images. Please remove some existing images first.`,
           variant: "destructive",
         });
         return;
       }
 
-      onFilesSelected(acceptedFiles);
-      setPreviewUrls(acceptedFiles.map(file => URL.createObjectURL(file)));
+      // Validate file sizes
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      const invalidFiles = acceptedFiles.filter(file => file.size > maxSize);
+      if (invalidFiles.length > 0) {
+        toast({
+          title: "Error",
+          description: "Some files are too large. Maximum file size is 5MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Keep existing files and add new ones
+      onFilesSelected((prevFiles: File[]) => [...prevFiles, ...acceptedFiles]);
+      setPreviewUrls(prevUrls => [
+        ...prevUrls,
+        ...acceptedFiles.map(file => URL.createObjectURL(file))
+      ]);
     },
     [existingImages.length, maxFiles, onFilesSelected]
   );
@@ -47,6 +63,8 @@ function DragDropUploadClient({
       'image/*': ['.jpeg', '.jpg', '.png', '.webp']
     },
     maxFiles: maxFiles - existingImages.length,
+    maxSize: 5 * 1024 * 1024, // 5MB
+    multiple: true,
   });
 
   return (
@@ -119,8 +137,12 @@ function DragDropUploadClient({
                   type="button"
                   className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => {
-                    setPreviewUrls(previewUrls.filter((_, i) => i !== index));
-                    onFilesSelected([]); // Clear the files
+                    const newPreviewUrls = previewUrls.filter((_, i) => i !== index);
+                    setPreviewUrls(newPreviewUrls);
+                    // Update the selected files to match the remaining previews
+                    onFilesSelected((prevFiles: File[]) => 
+                      prevFiles.filter((_: File, i: number) => i !== index)
+                    );
                   }}
                 >
                   ✕

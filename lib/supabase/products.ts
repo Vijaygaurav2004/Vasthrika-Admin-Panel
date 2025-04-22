@@ -54,30 +54,53 @@ export async function getProduct(id: string) {
   }
 }
 
+// Ensure products bucket exists
+async function ensureProductsBucket() {
+  if (!isSupabaseClient(supabase)) throw new Error("Supabase client not initialized");
+  
+  try {
+    // Check if bucket exists
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const productsBucket = buckets?.find(b => b.name === 'products');
+    
+    if (!productsBucket) {
+      // Create the bucket if it doesn't exist
+      const { error } = await supabase.storage.createBucket('products', {
+        public: true,
+        fileSizeLimit: 5242880, // 5MB in bytes
+      });
+      
+      if (error) throw error;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error ensuring products bucket:", error);
+    throw error;
+  }
+}
+
 // Upload product images
 export async function uploadProductImages(files: File[]) {
   try {
     if (!isSupabaseClient(supabase)) throw new Error("Supabase client not initialized");
     const client = supabase;
     
+    // Ensure bucket exists before uploading
+    await ensureProductsBucket();
+    
     const uploadPromises = files.map(async (file) => {
       try {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-        const filePath = `products/${fileName}`;
-        
-        // First check if bucket exists
-        const { data: buckets, error: bucketError } = await client.storage.listBuckets();
-        if (bucketError) throw bucketError;
-        
-        const productsBucket = buckets.find(b => b.name === 'products');
-        if (!productsBucket) {
-          throw new Error("Products bucket not found");
-        }
+        const filePath = fileName;
         
         const { error: uploadError } = await client.storage
           .from('products')
-          .upload(filePath, file);
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
         
         if (uploadError) {
           console.error("Upload error:", uploadError);
@@ -174,18 +197,21 @@ export async function deleteProduct(id: string, images: string[] = []) {
       throw error;
     }
     
+    // Ensure bucket exists before attempting to delete images
+    await ensureProductsBucket();
+    
     // Then, delete associated images from storage
     const deletePromises = images.map(async (url) => {
       if (!url) return;
       
       try {
         // Extract the path from the URL
-        const filePath = url.split('/products/')[1];
+        const filePath = url.split('/').pop(); // Get just the filename
         if (!filePath) return;
         
         const { error: deleteError } = await client.storage
           .from('products')
-          .remove([`products/${filePath}`]);
+          .remove([filePath]);
         
         if (deleteError) {
           console.error("Error deleting image:", deleteError);

@@ -81,8 +81,12 @@ export default function ProductForm({ productId }: ProductFormProps) {
     }
   };
 
-  const handleImageChange = (files: File[]) => {
-    setImageFiles(files);
+  const handleImageChange = (filesOrUpdater: File[] | ((prevFiles: File[]) => File[])) => {
+    if (typeof filesOrUpdater === 'function') {
+      setImageFiles(filesOrUpdater);
+    } else {
+      setImageFiles(filesOrUpdater);
+    }
   };
 
   const handleRemoveExistingImage = (imageUrl: string) => {
@@ -94,12 +98,32 @@ export default function ProductForm({ productId }: ProductFormProps) {
     setLoading(true);
 
     try {
+      // Validate required fields
+      if (!product.name || !product.description || !product.category || !product.price || product.price <= 0) {
+        toast({
+          title: "Error",
+          description: "Please fill in all required fields with valid values",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Upload new images if any
       let allImageUrls = [...existingImages];
       
       if (imageFiles.length > 0) {
-        const newImageUrls = await uploadProductImages(imageFiles);
-        allImageUrls = [...allImageUrls, ...newImageUrls];
+        try {
+          const newImageUrls = await uploadProductImages(imageFiles);
+          allImageUrls = [...allImageUrls, ...newImageUrls];
+        } catch (error) {
+          console.error("Error uploading images:", error);
+          toast({
+            title: "Error",
+            description: "Failed to upload images. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       const productData = {
@@ -130,7 +154,7 @@ export default function ProductForm({ productId }: ProductFormProps) {
       console.error("Error saving product:", error);
       toast({
         title: "Error",
-        description: "Failed to save product",
+        description: "Failed to save product. Please try again.",
         variant: "destructive",
       });
     } finally {

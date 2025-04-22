@@ -1,3 +1,6 @@
+-- Enable the storage extension
+create extension if not exists "storage" schema "extensions";
+
 -- Create the products bucket if it doesn't exist
 insert into storage.buckets (id, name, public)
 values ('products', 'products', true)
@@ -9,27 +12,24 @@ on storage.objects for select
 using ( bucket_id = 'products' );
 
 -- Allow authenticated users to upload files
-create policy "Authenticated users can upload files"
+create policy "Allow uploads"
 on storage.objects for insert
 with check (
   bucket_id = 'products'
-  and auth.role() = 'authenticated'
 );
 
 -- Allow users to update their own files
-create policy "Users can update their own files"
+create policy "Allow updates"
 on storage.objects for update
 using (
   bucket_id = 'products'
-  and auth.uid() = owner
 );
 
 -- Allow users to delete their own files
-create policy "Users can delete their own files"
+create policy "Allow deletes"
 on storage.objects for delete
 using (
   bucket_id = 'products'
-  and auth.uid() = owner
 );
 
 -- Allow public access to upload files (for development)
