@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { getProducts, deleteProduct } from "@/lib/supabase/products";
 import { Product } from "@/types/product";
 import { Button } from "@/components/ui/button";
@@ -137,11 +138,16 @@ export default function ProductsPage() {
                 {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
                    <TableCell>
-                        <img
-                            src={product.images?.[0] || "/placeholder.svg"}
-                            alt={product.name}
-                            className="h-12 w-12 rounded-sm object-cover"
-                         />
+                        <div className="relative h-12 w-12">
+                            <Image
+                                src={product.images?.[0] || "/placeholder.svg"}
+                                alt={product.name}
+                                fill
+                                sizes="48px"
+                                className="rounded-sm object-cover"
+                                priority={false}
+                            />
+                        </div>
                       </TableCell>
                     <TableCell>{product.name}</TableCell>
                     <TableCell>{product.category}</TableCell>

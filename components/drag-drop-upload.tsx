@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
@@ -73,12 +74,17 @@ function DragDropUploadClient({
           <h3 className="text-sm font-medium mb-2">Existing Images</h3>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {existingImages.map((url, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={url}
-                  alt={`Product ${index}`}
-                  className="h-24 w-full rounded-md object-cover"
-                />
+              <div key={index} className="relative group aspect-square">
+                <div className="relative w-full h-full">
+                  <Image
+                    src={url}
+                    alt={`Product ${index}`}
+                    fill
+                    sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
+                    className="rounded-md object-cover"
+                    priority={false}
+                  />
+                </div>
                 <button
                   type="button"
                   className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -98,12 +104,17 @@ function DragDropUploadClient({
           <h3 className="text-sm font-medium mb-2">New Images</h3>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {previewUrls.map((url, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={url}
-                  alt={`New ${index}`}
-                  className="h-24 w-full rounded-md object-cover"
-                />
+              <div key={index} className="relative group aspect-square">
+                <div className="relative w-full h-full">
+                  <Image
+                    src={url}
+                    alt={`New ${index}`}
+                    fill
+                    sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
+                    className="rounded-md object-cover"
+                    priority={false}
+                  />
+                </div>
                 <button
                   type="button"
                   className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity"
