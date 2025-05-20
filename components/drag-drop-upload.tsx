@@ -101,6 +101,11 @@ function DragDropUploadClient({
                     sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
                     className="rounded-md object-cover"
                     priority={false}
+                    unoptimized={url.startsWith('blob:')}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/placeholder.svg';
+                    }}
                   />
                 </div>
                 <button
@@ -131,6 +136,11 @@ function DragDropUploadClient({
                     sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
                     className="rounded-md object-cover"
                     priority={false}
+                    unoptimized={url.startsWith('blob:')}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/placeholder.svg';
+                    }}
                   />
                 </div>
                 <button

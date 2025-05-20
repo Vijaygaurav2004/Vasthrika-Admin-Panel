@@ -94,6 +94,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 Categories
               </Link>
             </li>
+            <li>
+              <Link
+                href="/contact-messages"
+                className={`block px-4 py-2 ${
+                  includesPath("/contact-messages")
+                    ? "bg-primary text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                Contact Messages
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/featured-collection"
+                className={`block px-4 py-2 ${
+                  includesPath("/featured-collection")
+                    ? "bg-primary text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                Featured Collection
+              </Link>
+            </li>
           </ul>
         </nav>
       </div>

@@ -96,8 +96,6 @@ export default function ProductsPage() {
   {/* Women Categories */}
   <option value="Silk">Silk</option>
   <option value="Tissue">Tissue</option>
-  <option value="Ethnic">Ethnic</option>
-  <option value="Fancy">Fancy</option>
   <option value="Fabric">Fabric</option>
   {/* Men Categories */}
   <option value="Dhothi">Dhothi</option>
