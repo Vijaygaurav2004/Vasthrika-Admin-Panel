@@ -156,6 +156,9 @@ export default function ProductsPage() {
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/products/${product.id}`}>Edit</Link>
                         </Button>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/products/${product.id}/details`}>Details</Link>
+                        </Button>
                         <Button
   variant="destructive"
   size="sm"

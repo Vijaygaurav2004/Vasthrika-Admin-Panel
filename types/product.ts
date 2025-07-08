@@ -22,4 +22,5 @@ export interface Product {
     updated_at?: string;
     featured_id?: string;  // ID when product is in featured collection
     hasColorVariants?: boolean; // Flag to indicate if product has color variants
+    details?: string; // Detailed product information
   }
