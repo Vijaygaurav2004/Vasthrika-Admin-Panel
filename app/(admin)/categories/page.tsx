@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -14,12 +13,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { toast } from "@/components/ui/use-toast";
-
-type Category = {
-  id: string;
-  name: string;
-  created_at?: string;
-};
+import { Category, getCategories, addCategory, updateCategory, deleteCategory } from "@/lib/supabase/categories";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -34,18 +28,7 @@ export default function CategoriesPage() {
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      if (!supabase) {
-        setCategories([]);
-        setLoading(false);
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await getCategories();
       setCategories(data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -70,21 +53,8 @@ export default function CategoriesPage() {
     }
 
     try {
-      if (!supabase) {
-        toast({
-          title: "Error",
-          description: "Database connection not available",
-          variant: "destructive",
-        });
-        return;
-      }
+      await addCategory(newCategory);
       
-      const { error } = await supabase
-        .from('categories')
-        .insert({ name: newCategory });
-
-      if (error) throw error;
-
       toast({
         title: "Success",
         description: "Category added successfully",
@@ -113,21 +83,7 @@ export default function CategoriesPage() {
     }
 
     try {
-      if (!supabase) {
-        toast({
-          title: "Error",
-          description: "Database connection not available",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      const { error } = await supabase
-        .from('categories')
-        .update({ name: editingCategory.name })
-        .eq('id', editingCategory.id);
-
-      if (error) throw error;
+      await updateCategory(editingCategory.id, editingCategory.name);
 
       toast({
         title: "Success",
@@ -149,21 +105,7 @@ export default function CategoriesPage() {
   const handleDeleteCategory = async (id: string) => {
     if (confirm("Are you sure you want to delete this category?")) {
       try {
-        if (!supabase) {
-          toast({
-            title: "Error",
-            description: "Database connection not available",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        const { error } = await supabase
-          .from('categories')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
+        await deleteCategory(id);
 
         toast({
           title: "Success",

@@ -17,9 +17,11 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { toast } from "@/components/ui/use-toast";
+import { Category, getCategories } from "@/lib/supabase/categories";
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -27,6 +29,24 @@ export default function ProductsPage() {
   useEffect(() => {
     loadProducts();
   }, [categoryFilter]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await getCategories();
+        setCategories(data || []);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load categories",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const loadProducts = async () => {
     try {
@@ -88,19 +108,17 @@ export default function ProductsPage() {
         </div>
         <div>
         <select
-  className="w-full rounded-md border border-input bg-background px-3 py-2"
-  value={categoryFilter}
-  onChange={(e) => setCategoryFilter(e.target.value)}
->
-  <option value="">All Categories</option>
-  {/* Women Categories */}
-  <option value="Silk">Silk</option>
-  <option value="Tissue">Tissue</option>
-  <option value="Fabric">Fabric</option>
-  {/* Men Categories */}
-  <option value="Dhothi">Dhothi</option>
-  <option value="Fabric">Fabric</option>
-</select>
+          className="w-full rounded-md border border-input bg-background px-3 py-2"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+        >
+          <option value="">All Categories</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.name}>
+              {category.name}
+            </option>
+          ))}
+        </select>
         </div>
       </div>
 
@@ -160,15 +178,15 @@ export default function ProductsPage() {
                           <Link href={`/products/${product.id}/details`}>Details</Link>
                         </Button>
                         <Button
-  variant="destructive"
-  size="sm"
-  onClick={() => 
-    product.id && 
-    handleDeleteProduct(product.id, product.images)
-  }
->
-  Delete
-</Button>
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => 
+                            product.id && 
+                            handleDeleteProduct(product.id, product.images)
+                          }
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

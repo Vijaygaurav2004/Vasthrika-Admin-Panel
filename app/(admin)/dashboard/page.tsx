@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { getCategories } from "@/lib/supabase/categories";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -29,10 +30,9 @@ export default function DashboardPage() {
           .from('products')
           .select('*', { count: 'exact', head: true });
 
-        // Get total categories count
-        const { count: categoriesCount } = await supabase
-          .from('categories')
-          .select('*', { count: 'exact', head: true });
+        // Get total categories count using our service
+        const categories = await getCategories();
+        const categoriesCount = categories.length;
 
         setStats({
           totalProducts: productsCount || 0,

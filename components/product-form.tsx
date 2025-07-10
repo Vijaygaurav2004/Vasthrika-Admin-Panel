@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import DragDropUpload from "@/components/drag-drop-upload";
 import ColorVariantUpload from "@/components/color-variant-upload";
+import { Category, getCategories } from "@/lib/supabase/categories";
 
 interface ProductFormProps {
   productId?: string;
@@ -25,6 +26,7 @@ interface ProductFormProps {
 export default function ProductForm({ productId }: ProductFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [product, setProduct] = useState<Partial<Product>>({
     name: "",
     description: "",
@@ -45,6 +47,25 @@ export default function ProductForm({ productId }: ProductFormProps) {
   
   // Track files for each color variant
   const [colorVariantFiles, setColorVariantFiles] = useState<Record<number, File[]>>({});
+
+  // Fetch categories from database
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await getCategories();
+        setCategories(data || []);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load categories",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   // Fetch existing product if in edit mode
   useEffect(() => {
@@ -390,13 +411,11 @@ export default function ProductForm({ productId }: ProductFormProps) {
             required
           >
             <option value="">Select Category</option>
-            {/* Women Categories */}
-            <option value="Silk">Silk</option>
-            <option value="Tissue">Tissue</option>
-            <option value="Fabric">Fabric</option>
-            {/* Men Categories */}
-            <option value="Dhothi">Dhothi</option>
-            <option value="Fabric">Fabric</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.name}>
+                {category.name}
+              </option>
+            ))}
           </select>
         </div>
 
