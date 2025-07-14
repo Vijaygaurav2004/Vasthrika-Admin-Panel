@@ -46,6 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (pathname === "/dashboard") return "Dashboard";
     if (includesPath("/products")) return "Products";
     if (includesPath("/categories")) return "Categories";
+    if (includesPath("/orders")) return "Orders";
     return "";
   };
 
@@ -116,6 +117,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 }`}
               >
                 Featured Collection
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/orders"
+                className={`block px-4 py-2 ${
+                  includesPath("/orders")
+                    ? "bg-primary text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                Orders
               </Link>
             </li>
           </ul>
