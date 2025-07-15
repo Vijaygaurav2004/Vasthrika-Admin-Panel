@@ -4,6 +4,7 @@ export interface Purchase {
   user_email: string;
   user_name: string;
   user_phone?: string;
+  address?: string;
   product_id: string;
   product_name: string;
   product_price: number;

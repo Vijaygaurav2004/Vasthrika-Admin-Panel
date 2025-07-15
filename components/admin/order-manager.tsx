@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getPurchases, updatePurchaseStatus } from "@/lib/supabase/orders";
+import { getPurchases, updatePurchaseStatus, deletePurchase, deleteAllPurchases } from "@/lib/supabase/orders";
 import { Purchase } from "@/types/order";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +61,36 @@ export default function OrderManager() {
     }
   };
   
+  const handleDeletePurchase = async (purchaseId: string) => {
+    try {
+      await deletePurchase(purchaseId);
+      
+      // Update local state by removing the deleted purchase
+      setPurchases(purchases.filter(purchase => purchase.id !== purchaseId));
+      
+      // Close details dialog if the deleted purchase was selected
+      if (selectedPurchase && selectedPurchase.id === purchaseId) {
+        setIsDetailsOpen(false);
+      }
+    } catch (err) {
+      console.error("Failed to delete purchase:", err);
+      setError("Failed to delete purchase");
+    }
+  };
+  
+  const handleDeleteAllPurchases = async () => {
+    if (confirm("Are you sure you want to delete all purchases? This action cannot be undone.")) {
+      try {
+        await deleteAllPurchases();
+        setPurchases([]);
+        setIsDetailsOpen(false);
+      } catch (err) {
+        console.error("Failed to delete all purchases:", err);
+        setError("Failed to delete all purchases");
+      }
+    }
+  };
+  
   const viewPurchaseDetails = (purchase: Purchase) => {
     setSelectedPurchase(purchase);
     setIsDetailsOpen(true);
@@ -108,7 +138,17 @@ export default function OrderManager() {
   
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Customer Purchases</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Customer Purchases</h2>
+        {purchases.length > 0 && (
+          <Button 
+            variant="destructive" 
+            onClick={handleDeleteAllPurchases}
+          >
+            Delete All
+          </Button>
+        )}
+      </div>
       
       {purchases.length === 0 ? (
         <Card className="p-6">
@@ -150,6 +190,13 @@ export default function OrderManager() {
                       >
                         Details
                       </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={() => handleDeletePurchase(purchase.id)}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -188,6 +235,9 @@ export default function OrderManager() {
                   {selectedPurchase.user_phone && (
                     <p><span className="font-medium">Phone:</span> {selectedPurchase.user_phone}</p>
                   )}
+                  {selectedPurchase.address && (
+                    <p><span className="font-medium">Address:</span> {selectedPurchase.address}</p>
+                  )}
                 </div>
               </div>
               
@@ -225,33 +275,45 @@ export default function OrderManager() {
                 </Table>
               </div>
               
-              <div>
-                <h3 className="font-medium mb-2">Update Status</h3>
-                <div className="flex gap-2">
+              <div className="flex justify-between">
+                <div>
+                  <h3 className="font-medium mb-2">Update Status</h3>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant={selectedPurchase.status.toLowerCase() === 'pending' ? 'default' : 'outline'}
+                      onClick={() => handleStatusChange(selectedPurchase.id, 'pending')}
+                    >
+                      Pending
+                    </Button>
+                    <Button 
+                      variant={selectedPurchase.status.toLowerCase() === 'processing' ? 'default' : 'outline'}
+                      onClick={() => handleStatusChange(selectedPurchase.id, 'processing')}
+                    >
+                      Processing
+                    </Button>
+                    <Button 
+                      variant={selectedPurchase.status.toLowerCase() === 'completed' ? 'default' : 'outline'}
+                      onClick={() => handleStatusChange(selectedPurchase.id, 'completed')}
+                    >
+                      Completed
+                    </Button>
+                    <Button 
+                      variant={selectedPurchase.status.toLowerCase() === 'cancelled' ? 'default' : 'outline'}
+                      className="bg-red-500 hover:bg-red-600"
+                      onClick={() => handleStatusChange(selectedPurchase.id, 'cancelled')}
+                    >
+                      Cancelled
+                    </Button>
+                  </div>
+                </div>
+                <div>
                   <Button 
-                    variant={selectedPurchase.status.toLowerCase() === 'pending' ? 'default' : 'outline'}
-                    onClick={() => handleStatusChange(selectedPurchase.id, 'pending')}
+                    variant="destructive"
+                    onClick={() => {
+                      handleDeletePurchase(selectedPurchase.id);
+                    }}
                   >
-                    Pending
-                  </Button>
-                  <Button 
-                    variant={selectedPurchase.status.toLowerCase() === 'processing' ? 'default' : 'outline'}
-                    onClick={() => handleStatusChange(selectedPurchase.id, 'processing')}
-                  >
-                    Processing
-                  </Button>
-                  <Button 
-                    variant={selectedPurchase.status.toLowerCase() === 'completed' ? 'default' : 'outline'}
-                    onClick={() => handleStatusChange(selectedPurchase.id, 'completed')}
-                  >
-                    Completed
-                  </Button>
-                  <Button 
-                    variant={selectedPurchase.status.toLowerCase() === 'cancelled' ? 'default' : 'outline'}
-                    className="bg-red-500 hover:bg-red-600"
-                    onClick={() => handleStatusChange(selectedPurchase.id, 'cancelled')}
-                  >
-                    Cancelled
+                    Delete Purchase
                   </Button>
                 </div>
               </div>
