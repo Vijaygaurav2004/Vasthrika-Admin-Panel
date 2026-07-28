@@ -1,0 +1,442 @@
+"use client";
+
+import { useState, useEffect, useCallback, useMemo } from "react";
+import Image from "next/image";
+import { useDropzone } from "react-dropzone";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/use-toast";
+import { StockItem } from "@/types/stock-item";
+import { getStockItems } from "@/lib/supabase/stock-items";
+import { getCollections } from "@/lib/supabase/collections";
+import { QrScanner } from "@/components/admin/qr-scanner";
+
+export default function InventoryPage() {
+  const [items, setItems] = useState<StockItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [filter, setFilter] = useState<"all" | "in_stock" | "sold">("in_stock");
+  const [search, setSearch] = useState("");
+
+  // Add-stock form fields
+  const [code, setCode] = useState("");
+  const [label, setLabel] = useState("");
+  const [color, setColor] = useState("");
+  const [pattern, setPattern] = useState("");
+  const [fabric, setFabric] = useState("");
+  const [category, setCategory] = useState("");
+  const [price, setPrice] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [scanning, setScanning] = useState(false);
+
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [folderNames, setFolderNames] = useState<string[]>([]);
+
+  // WhatsApp share
+  const [shareMode, setShareMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sharing, setSharing] = useState(false);
+
+  const fetchItems = useCallback(async () => {
+    try {
+      setLoading(true);
+      const statusFilter = filter === "all" ? undefined : filter;
+      const data = await getStockItems(statusFilter);
+      setItems(data);
+    } catch (error) {
+      console.error("Error fetching items:", error);
+      toast({ title: "Error", description: "Failed to load inventory", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  useEffect(() => {
+    getCollections()
+      .then((cols) => setFolderNames(cols.map((c) => c.name)))
+      .catch(() => setFolderNames([]));
+  }, []);
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    setSelectedFiles((prev) => [...prev, ...acceptedFiles]);
+    setPreviewUrls((prev) => [...prev, ...acceptedFiles.map((f) => URL.createObjectURL(f))]);
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { "image/*": [".jpeg", ".jpg", ".png", ".webp"] },
+    maxSize: 10 * 1024 * 1024,
+    multiple: true,
+  });
+
+  const removePreview = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const resetForm = () => {
+    setSelectedFiles([]);
+    setPreviewUrls([]);
+    setCode("");
+    setLabel("");
+    setColor("");
+    setPattern("");
+    setFabric("");
+    setCategory("");
+    setPrice("");
+  };
+
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0) {
+      toast({ title: "No photos", description: "Add at least one photo.", variant: "destructive" });
+      return;
+    }
+    if (code.trim() && selectedFiles.length > 1) {
+      toast({
+        title: "One code = one saree",
+        description: "When you scan/enter a QR code, attach exactly one photo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      selectedFiles.forEach((file) => formData.append("files", file));
+      if (code.trim()) formData.append("code", code.trim());
+      if (label.trim()) formData.append("label", label.trim());
+      if (color.trim()) formData.append("color", color.trim());
+      if (pattern.trim()) formData.append("pattern", pattern.trim());
+      if (fabric.trim()) formData.append("fabric", fabric.trim());
+      if (category.trim()) formData.append("category", category.trim());
+      if (price.trim()) formData.append("price", price.trim());
+
+      const response = await fetch("/api/inventory", { method: "POST", body: formData });
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error || "Upload failed");
+
+      toast({
+        title: "Stock added",
+        description: `${data.added} saree(s) added.${data.errors ? ` (${data.errors.length} warning(s))` : ""}`,
+      });
+
+      resetForm();
+      fetchItems();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Upload failed",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (item: StockItem) => {
+    if (!item.id) return;
+    if (!confirm(`Delete ${item.code || "this saree"}? This cannot be undone. (To record a sale, use Sell instead.)`)) return;
+    setDeleting(item.id);
+    try {
+      const response = await fetch("/api/inventory", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, imageUrl: item.image }),
+      });
+      if (!response.ok) throw new Error("Failed to delete");
+      toast({ title: "Deleted", description: "Item removed." });
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+    } catch {
+      toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const toggleSelect = (id?: string) => {
+    if (!id) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const shareSelected = async () => {
+    const chosen = items.filter((i) => i.id && selected.has(i.id));
+    if (chosen.length === 0) {
+      toast({ title: "Nothing selected", description: "Tap sarees to select, then share." });
+      return;
+    }
+    setSharing(true);
+    const caption = chosen
+      .map((i) =>
+        `• ${i.label || "Saree"}${i.code ? ` (${i.code})` : ""}` +
+        `${[i.color, i.pattern, i.fabric].filter(Boolean).length ? " — " + [i.color, i.pattern, i.fabric].filter(Boolean).join(", ") : ""}` +
+        `${i.price != null ? ` — ₹${i.price}` : ""}`
+      )
+      .join("\n");
+
+    try {
+      // Try native share sheet with actual photos (works on phones/iPad).
+      const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
+      if (nav.canShare) {
+        const files = await Promise.all(
+          chosen.slice(0, 10).map(async (i) => {
+            const res = await fetch(i.image);
+            const blob = await res.blob();
+            return new File([blob], `${i.code || "saree"}.jpg`, { type: blob.type || "image/jpeg" });
+          })
+        );
+        if (nav.canShare({ files })) {
+          await navigator.share({ files, text: caption, title: "Vasthrika Sarees" });
+          setSharing(false);
+          return;
+        }
+      }
+    } catch {
+      /* fall through to text link */
+    }
+
+    // Fallback: open WhatsApp with the text catalog.
+    window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, "_blank");
+    setSharing(false);
+  };
+
+  const existingCollections = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...folderNames,
+          ...(items.map((i) => i.category?.trim()).filter(Boolean) as string[]),
+        ])
+      ),
+    [items, folderNames]
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((i) =>
+      [i.code, i.label, i.color, i.pattern, i.fabric, i.category]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [items, search]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Inventory</h1>
+        <p className="mt-1 text-gray-500">
+          Register each saree with its QR code. Internal stock only — not published to the website.
+        </p>
+      </div>
+
+      {/* Add stock */}
+      <div className="rounded-lg border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold">Add New Stock</h2>
+
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <Label htmlFor="code">QR Code</Label>
+            <div className="mt-1 flex gap-2">
+              <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="VS-000001" />
+              <Button type="button" variant="outline" onClick={() => setScanning(true)}>
+                Scan
+              </Button>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="category">Collection / Folder</Label>
+            <Input
+              id="category"
+              className="mt-1"
+              list="collections-list"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g., Temple, BYR buttas"
+            />
+            <datalist id="collections-list">
+              {existingCollections.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <Label htmlFor="label">Label / Batch</Label>
+            <Input id="label" className="mt-1" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g., July Batch" />
+          </div>
+          <div>
+            <Label htmlFor="price">Price (₹)</Label>
+            <Input id="price" className="mt-1" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g., 2500" />
+          </div>
+          <div>
+            <Label htmlFor="color">Color</Label>
+            <Input id="color" className="mt-1" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g., Red" />
+          </div>
+          <div>
+            <Label htmlFor="pattern">Pattern</Label>
+            <Input id="pattern" className="mt-1" value={pattern} onChange={(e) => setPattern(e.target.value)} placeholder="e.g., Floral" />
+          </div>
+          <div>
+            <Label htmlFor="fabric">Fabric</Label>
+            <Input id="fabric" className="mt-1" value={fabric} onChange={(e) => setFabric(e.target.value)} placeholder="e.g., Silk" />
+          </div>
+        </div>
+
+        <div
+          {...getRootProps()}
+          className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${isDragActive ? "border-primary bg-primary/5" : "border-gray-300 hover:border-gray-400"}`}
+        >
+          <input {...getInputProps()} />
+          <div className="space-y-2">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </div>
+            <p className="font-medium">{isDragActive ? "Drop photos here" : "Take / choose saree photo(s)"}</p>
+            <p className="text-sm text-gray-500">
+              With a QR code: one photo = one saree. Without a code: add many at once.
+            </p>
+          </div>
+        </div>
+
+        {previewUrls.length > 0 && (
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium">{previewUrls.length} photo(s) selected</p>
+              <Button variant="outline" size="sm" onClick={() => { setSelectedFiles([]); setPreviewUrls([]); }}>Clear</Button>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+              {previewUrls.map((url, index) => (
+                <div key={index} className="group relative aspect-square">
+                  <div className="relative h-full w-full overflow-hidden rounded-md border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
+                  </div>
+                  <button type="button" onClick={() => removePreview(index)} className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button onClick={handleUpload} disabled={uploading} size="lg">
+                {uploading ? "Uploading & Analyzing…" : `Add ${selectedFiles.length} Saree(s) to Stock`}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Browse */}
+      <div className="rounded-lg border bg-white p-6 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Stock ({filtered.length})</h2>
+            <div className="flex flex-wrap gap-2">
+              {(["in_stock", "sold", "all"] as const).map((f) => (
+                <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" onClick={() => setFilter(f)}>
+                  {f === "in_stock" ? "In Stock" : f === "sold" ? "Sold" : "All"}
+                </Button>
+              ))}
+              <Button
+                variant={shareMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setShareMode((s) => !s); setSelected(new Set()); }}
+              >
+                {shareMode ? "Cancel share" : "Share to WhatsApp"}
+              </Button>
+            </div>
+          </div>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by code, color, pattern, fabric, label…"
+            className="max-w-md"
+          />
+          {shareMode && (
+            <div className="flex items-center gap-3 rounded-md bg-green-50 p-3">
+              <span className="text-sm text-green-800">{selected.size} selected</span>
+              <Button size="sm" onClick={shareSelected} disabled={sharing || selected.size === 0}>
+                {sharing ? "Preparing…" : "Share selected"}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <p className="py-12 text-center text-gray-400">Loading…</p>
+        ) : filtered.length === 0 ? (
+          <p className="py-12 text-center text-gray-500">
+            {filter === "in_stock" ? "No sarees in stock. Add some above." : filter === "sold" ? "No sold sarees yet." : "No items found."}
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {filtered.map((item) => {
+              const isSelected = item.id ? selected.has(item.id) : false;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => shareMode && toggleSelect(item.id)}
+                  className={`group relative overflow-hidden rounded-lg border transition ${
+                    item.status === "sold" ? "border-gray-300 opacity-60" : "border-gray-200"
+                  } ${shareMode ? "cursor-pointer" : ""} ${isSelected ? "ring-2 ring-green-500" : ""}`}
+                >
+                  <div className="relative aspect-square">
+                    <Image src={item.image} alt={item.label || "Saree"} fill className="object-cover" sizes="(min-width: 1280px) 16vw, (min-width: 768px) 25vw, 50vw" unoptimized />
+                    {item.status === "sold" && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <span className="rounded-full bg-red-600 px-3 py-1 text-sm font-bold text-white">SOLD</span>
+                      </div>
+                    )}
+                    {shareMode && isSelected && (
+                      <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-white">✓</div>
+                    )}
+                  </div>
+                  <div className="p-2">
+                    {item.code && <p className="font-mono text-[11px] font-semibold text-primary">{item.code}</p>}
+                    {item.label && <p className="truncate text-xs font-medium">{item.label}</p>}
+                    <p className="truncate text-[11px] text-gray-500">
+                      {[item.color, item.pattern, item.fabric].filter(Boolean).join(" · ")}
+                    </p>
+                    {item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
+                  </div>
+                  {!shareMode && item.status === "in_stock" && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
+                      disabled={deleting === item.id}
+                      className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50"
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {scanning && (
+        <QrScanner onScan={(c) => { setCode(c.trim()); setScanning(false); toast({ title: "Code scanned", description: c }); }} onClose={() => setScanning(false)} />
+      )}
+    </div>
+  );
+}

@@ -47,6 +47,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (includesPath("/products")) return "Products";
     if (includesPath("/categories")) return "Categories";
     if (includesPath("/orders")) return "Orders";
+    if (includesPath("/inventory")) return "Inventory";
+    if (includesPath("/collections")) return "Collections";
+    if (includesPath("/stock-out")) return "Stock Out";
+    if (includesPath("/sell")) return "Sell";
+    if (includesPath("/labels")) return "QR Labels";
     return "";
   };
 
@@ -129,6 +134,54 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 }`}
               >
                 Orders
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/inventory"
+                className={`block px-4 py-2 ${
+                  includesPath("/inventory")
+                    ? "bg-primary text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                Inventory
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/collections"
+                className={`block px-4 py-2 ${
+                  includesPath("/collections")
+                    ? "bg-primary text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                Collections
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/sell"
+                className={`block px-4 py-2 ${
+                  includesPath("/sell")
+                    ? "bg-primary text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                Sell (Scan)
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/labels"
+                className={`block px-4 py-2 ${
+                  includesPath("/labels")
+                    ? "bg-primary text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                QR Labels
               </Link>
             </li>
           </ul>
