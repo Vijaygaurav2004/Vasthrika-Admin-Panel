@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
+import { shareItemsToWhatsApp } from "@/lib/share";
 import {
   Collection,
   getCollections,
@@ -36,6 +37,41 @@ export default function CollectionsPage() {
   const [manage, setManage] = useState(false);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Share-to-WhatsApp (inside a folder)
+  const [shareMode, setShareMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sharing, setSharing] = useState(false);
+
+  const closeFolder = () => {
+    setOpenFolder(null);
+    setShareMode(false);
+    setSelected(new Set());
+  };
+
+  const toggleSelect = (id?: string) => {
+    if (!id) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const shareSelected = async (folderItems: StockItem[]) => {
+    const chosen = folderItems.filter((i) => i.id && selected.has(i.id));
+    if (chosen.length === 0) {
+      toast({ title: "Nothing selected", description: "Tap sarees to select, then share." });
+      return;
+    }
+    setSharing(true);
+    try {
+      await shareItemsToWhatsApp(chosen);
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -159,38 +195,68 @@ export default function CollectionsPage() {
   if (current) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => setOpenFolder(null)}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" size="sm" onClick={closeFolder}>
             ← All folders
           </Button>
           <h1 className="text-xl font-bold">{current.name}</h1>
           <span className="text-sm text-gray-500">({current.items.length})</span>
+          {current.items.length > 0 && (
+            <Button
+              variant={shareMode ? "default" : "outline"}
+              size="sm"
+              className="ml-auto"
+              onClick={() => { setShareMode((s) => !s); setSelected(new Set()); }}
+            >
+              {shareMode ? "Cancel" : "Share to WhatsApp"}
+            </Button>
+          )}
         </div>
+
+        {shareMode && (
+          <div className="flex items-center gap-3 rounded-md bg-green-50 p-3">
+            <span className="text-sm text-green-800">{selected.size} selected</span>
+            <Button size="sm" onClick={() => shareSelected(current.items)} disabled={sharing || selected.size === 0}>
+              {sharing ? "Preparing…" : "Share selected"}
+            </Button>
+          </div>
+        )}
+
         {current.items.length === 0 ? (
           <p className="rounded-lg border bg-white p-8 text-center text-gray-500 shadow-sm">
             This folder is empty. Add sarees to it from the Inventory screen.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-4 rounded-lg border bg-white p-4 shadow-sm sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {current.items.map((item) => (
-              <div key={item.id} className={`overflow-hidden rounded-lg border ${item.status === "sold" ? "opacity-60" : ""}`}>
-                <div className="relative aspect-square">
-                  <Image src={item.image} alt={item.label || "Saree"} fill className="object-cover" sizes="(min-width:768px) 20vw, 50vw" unoptimized />
-                  {item.status === "sold" && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                      <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">SOLD</span>
-                    </div>
-                  )}
+            {current.items.map((item) => {
+              const isSelected = item.id ? selected.has(item.id) : false;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => shareMode && toggleSelect(item.id)}
+                  className={`overflow-hidden rounded-lg border transition ${item.status === "sold" ? "opacity-60" : ""} ${shareMode ? "cursor-pointer" : ""} ${isSelected ? "ring-2 ring-green-500" : ""}`}
+                >
+                  <div className="relative aspect-square">
+                    <Image src={item.image} alt={item.label || "Saree"} fill className="object-cover" sizes="(min-width:768px) 20vw, 50vw" unoptimized />
+                    {item.status === "sold" && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">SOLD</span>
+                      </div>
+                    )}
+                    {shareMode && isSelected && (
+                      <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-white">✓</div>
+                    )}
+                  </div>
+                  <div className="p-2">
+                    {item.code && <p className="font-mono text-[11px] font-semibold text-primary">{item.code}</p>}
+                    <p className="truncate text-[11px] text-gray-500">
+                      {[item.color, item.pattern, item.fabric].filter(Boolean).join(" · ")}
+                    </p>
+                    {item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
+                  </div>
                 </div>
-                <div className="p-2">
-                  {item.code && <p className="font-mono text-[11px] font-semibold text-primary">{item.code}</p>}
-                  <p className="truncate text-[11px] text-gray-500">
-                    {[item.color, item.pattern, item.fabric].filter(Boolean).join(" · ")}
-                  </p>
-                  {item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

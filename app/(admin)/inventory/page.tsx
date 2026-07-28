@@ -10,6 +10,7 @@ import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
 import { getCollections } from "@/lib/supabase/collections";
+import { shareItemsToWhatsApp } from "@/lib/share";
 import { QrScanner } from "@/components/admin/qr-scanner";
 
 export default function InventoryPage() {
@@ -178,38 +179,11 @@ export default function InventoryPage() {
       return;
     }
     setSharing(true);
-    const caption = chosen
-      .map((i) =>
-        `• ${i.label || "Saree"}${i.code ? ` (${i.code})` : ""}` +
-        `${[i.color, i.pattern, i.fabric].filter(Boolean).length ? " — " + [i.color, i.pattern, i.fabric].filter(Boolean).join(", ") : ""}` +
-        `${i.price != null ? ` — ₹${i.price}` : ""}`
-      )
-      .join("\n");
-
     try {
-      // Try native share sheet with actual photos (works on phones/iPad).
-      const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
-      if (nav.canShare) {
-        const files = await Promise.all(
-          chosen.slice(0, 10).map(async (i) => {
-            const res = await fetch(i.image);
-            const blob = await res.blob();
-            return new File([blob], `${i.code || "saree"}.jpg`, { type: blob.type || "image/jpeg" });
-          })
-        );
-        if (nav.canShare({ files })) {
-          await navigator.share({ files, text: caption, title: "Vasthrika Sarees" });
-          setSharing(false);
-          return;
-        }
-      }
-    } catch {
-      /* fall through to text link */
+      await shareItemsToWhatsApp(chosen);
+    } finally {
+      setSharing(false);
     }
-
-    // Fallback: open WhatsApp with the text catalog.
-    window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, "_blank");
-    setSharing(false);
   };
 
   const existingCollections = useMemo(
@@ -415,14 +389,15 @@ export default function InventoryPage() {
                     </p>
                     {item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
                   </div>
-                  {!shareMode && item.status === "in_stock" && (
+                  {!shareMode && (
                     <button
                       type="button"
+                      aria-label="Delete saree"
                       onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
                       disabled={deleting === item.id}
-                      className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50"
+                      className="absolute right-1 top-1 rounded-full bg-red-500 p-1.5 text-white shadow-md disabled:opacity-50"
                     >
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
