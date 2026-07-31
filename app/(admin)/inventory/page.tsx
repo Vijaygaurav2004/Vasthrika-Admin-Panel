@@ -11,6 +11,7 @@ import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
 import { getCollections } from "@/lib/supabase/collections";
 import { shareItemsToWhatsApp } from "@/lib/share";
+import { compressImage } from "@/lib/image";
 import { QrScanner } from "@/components/admin/qr-scanner";
 
 export default function InventoryPage() {
@@ -110,7 +111,8 @@ export default function InventoryPage() {
     setUploading(true);
     try {
       const formData = new FormData();
-      selectedFiles.forEach((file) => formData.append("files", file));
+      const compressed = await Promise.all(selectedFiles.map((f) => compressImage(f)));
+      compressed.forEach((file) => formData.append("files", file));
       if (code.trim()) formData.append("code", code.trim());
       if (label.trim()) formData.append("label", label.trim());
       if (color.trim()) formData.append("color", color.trim());

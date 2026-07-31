@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,17 +20,36 @@ export default function LabelsPage() {
   const [labels, setLabels] = useState<LabelData[]>([]);
   const [generating, setGenerating] = useState(false);
 
+  const STORAGE_KEY = "vasthrika_qr_next_start";
   const pad = (n: number) => String(n).padStart(6, "0");
 
-  // After printing, move the Start number to just after the last printed code,
-  // so the next batch continues without ever repeating a code.
+  // Remember the last number across app restarts / devices refreshes.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const n = parseInt(saved, 10);
+        if (!Number.isNaN(n) && n > 0) setStartNumber(n);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // After printing, set the Start number to the LAST printed number and save it,
+  // so the next batch continues from there even after closing the app.
   const printSheet = () => {
     window.print();
     if (labels.length === 0) return;
     const lastCode = labels[labels.length - 1].code;
     const lastNum = parseInt(lastCode.split("-").pop() || "", 10);
     if (!Number.isNaN(lastNum)) {
-      setStartNumber(lastNum + 1);
+      setStartNumber(lastNum);
+      try {
+        window.localStorage.setItem(STORAGE_KEY, String(lastNum));
+      } catch {
+        /* ignore */
+      }
     }
   };
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
 import { describeSareeFromBase64 } from "@/lib/ai/describe-saree";
+import { isR2Configured, isR2Url, uploadToR2, deleteFromR2 } from "@/lib/r2";
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,25 +55,37 @@ export async function POST(request: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString("base64");
 
-        const { error: uploadError } = await supabase.storage
-          .from("products")
-          .upload(fileName, arrayBuffer, {
-            contentType: file.type,
-            cacheControl: "3600",
-          });
+        // Store the photo in Cloudflare R2 when configured, else Supabase storage.
+        let publicUrl: string;
+        if (isR2Configured()) {
+          try {
+            publicUrl = await uploadToR2(fileName, Buffer.from(arrayBuffer), file.type || "image/jpeg");
+          } catch (r2Err) {
+            errors.push(`R2 upload failed for ${file.name}: ${r2Err instanceof Error ? r2Err.message : String(r2Err)}`);
+            continue;
+          }
+        } else {
+          const { error: uploadError } = await supabase.storage
+            .from("products")
+            .upload(fileName, arrayBuffer, {
+              contentType: file.type,
+              cacheControl: "3600",
+            });
 
-        if (uploadError) {
-          errors.push(`Upload failed for ${file.name}: ${uploadError.message}`);
-          continue;
-        }
+          if (uploadError) {
+            errors.push(`Upload failed for ${file.name}: ${uploadError.message}`);
+            continue;
+          }
 
-        const { data: urlData } = supabase.storage
-          .from("products")
-          .getPublicUrl(fileName);
+          const { data: urlData } = supabase.storage
+            .from("products")
+            .getPublicUrl(fileName);
 
-        if (!urlData?.publicUrl) {
-          errors.push(`Failed to get URL for ${file.name}`);
-          continue;
+          if (!urlData?.publicUrl) {
+            errors.push(`Failed to get URL for ${file.name}`);
+            continue;
+          }
+          publicUrl = urlData.publicUrl;
         }
 
         let aiDescription = null;
@@ -87,7 +100,7 @@ export async function POST(request: NextRequest) {
         const { data: item, error: insertError } = await supabase
           .from("stock_items")
           .insert({
-            image: urlData.publicUrl,
+            image: publicUrl,
             code: code || null,
             label: label || null,
             category: category || null,
@@ -145,10 +158,19 @@ export async function DELETE(request: NextRequest) {
     if (error) throw error;
 
     if (imageUrl) {
-      const parts = imageUrl.split("/products/");
-      const filePath = parts[parts.length - 1];
-      if (filePath) {
-        await supabase.storage.from("products").remove([filePath]);
+      try {
+        if (isR2Configured() && isR2Url(imageUrl)) {
+          await deleteFromR2(imageUrl);
+        } else {
+          const parts = imageUrl.split("/products/");
+          const filePath = parts[parts.length - 1];
+          if (filePath) {
+            await supabase.storage.from("products").remove([filePath]);
+          }
+        }
+      } catch (fileErr) {
+        // Row is already deleted; a leftover file is non-fatal.
+        console.error("Image cleanup failed (non-blocking):", fileErr);
       }
     }
 
