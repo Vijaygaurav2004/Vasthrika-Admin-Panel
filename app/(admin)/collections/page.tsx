@@ -43,10 +43,16 @@ export default function CollectionsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sharing, setSharing] = useState(false);
 
+  // Filters inside an open folder
+  const [folderStatus, setFolderStatus] = useState<"all" | "in_stock" | "sold">("all");
+  const [folderSearch, setFolderSearch] = useState("");
+
   const closeFolder = () => {
     setOpenFolder(null);
     setShareMode(false);
     setSelected(new Set());
+    setFolderStatus("all");
+    setFolderSearch("");
   };
 
   const toggleSelect = (id?: string) => {
@@ -193,6 +199,14 @@ export default function CollectionsPage() {
 
   // ---- Drill-down: one folder's sarees ----
   if (current) {
+    const q = folderSearch.trim().toLowerCase();
+    const folderFiltered = current.items.filter((i) => {
+      if (folderStatus !== "all" && i.status !== folderStatus) return false;
+      if (!q) return true;
+      return [i.code, i.label, i.color, i.pattern, i.fabric]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -200,7 +214,7 @@ export default function CollectionsPage() {
             ← All folders
           </Button>
           <h1 className="text-xl font-bold">{current.name}</h1>
-          <span className="text-sm text-gray-500">({current.items.length})</span>
+          <span className="text-sm text-gray-500">({folderFiltered.length})</span>
           {current.items.length > 0 && (
             <Button
               variant={shareMode ? "default" : "outline"}
@@ -212,6 +226,29 @@ export default function CollectionsPage() {
             </Button>
           )}
         </div>
+
+        {current.items.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              {(["in_stock", "sold", "all"] as const).map((f) => (
+                <Button
+                  key={f}
+                  variant={folderStatus === f ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFolderStatus(f)}
+                >
+                  {f === "in_stock" ? "In Stock" : f === "sold" ? "Sold" : "All"}
+                </Button>
+              ))}
+            </div>
+            <Input
+              value={folderSearch}
+              onChange={(e) => setFolderSearch(e.target.value)}
+              placeholder="Search by code, color, pattern, fabric, label…"
+              className="max-w-md"
+            />
+          </div>
+        )}
 
         {shareMode && (
           <div className="flex items-center gap-3 rounded-md bg-green-50 p-3">
@@ -226,9 +263,13 @@ export default function CollectionsPage() {
           <p className="rounded-lg border bg-white p-8 text-center text-gray-500 shadow-sm">
             This folder is empty. Add sarees to it from the Inventory screen.
           </p>
+        ) : folderFiltered.length === 0 ? (
+          <p className="rounded-lg border bg-white p-8 text-center text-gray-500 shadow-sm">
+            No sarees match these filters.
+          </p>
         ) : (
           <div className="grid grid-cols-2 gap-4 rounded-lg border bg-white p-4 shadow-sm sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {current.items.map((item) => {
+            {folderFiltered.map((item) => {
               const isSelected = item.id ? selected.has(item.id) : false;
               return (
                 <div
