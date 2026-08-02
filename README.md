@@ -1,6 +1,6 @@
-# Vasthrika Admin
+# Satyakrupa Silks Admin
 
-Admin dashboard for managing Vasthrika's products, categories, and orders.
+Admin dashboard for managing Satyakrupa Silks' products, categories, and orders.
 
 ## Features
 
@@ -32,8 +32,8 @@ Admin dashboard for managing Vasthrika's products, categories, and orders.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/vasthrika-admin.git
-   cd vasthrika-admin
+   git clone https://github.com/your-username/satyakrupa-silks-admin.git
+   cd satyakrupa-silks-admin
    ```
 
 2. Install dependencies:
@@ -63,7 +63,7 @@ Admin dashboard for managing Vasthrika's products, categories, and orders.
 ## Project Structure
 
 ```
-vasthrika-admin/
+satyakrupa-silks-admin/
 ├── app/                    # Next.js app directory
 │   ├── (admin)/           # Admin routes (protected)
 │   ├── api/               # API routes
