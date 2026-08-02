@@ -35,7 +35,7 @@ export async function shareItemsToWhatsApp(items: StockItem[]): Promise<void> {
         })
       );
       if (nav.canShare({ files })) {
-        await navigator.share({ files, text, title: "Vasthrika Sarees" });
+        await navigator.share({ files, text, title: "Satyakrupa Silks Sarees" });
         return;
       }
     }

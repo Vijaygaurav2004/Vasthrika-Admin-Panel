@@ -60,7 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <div className="w-64 bg-white shadow-md">
         <div className="p-6">
-          <h1 className="text-xl font-bold">Vasthrika Admin</h1>
+          <h1 className="text-xl font-bold">Satyakrupa Silks Admin</h1>
         </div>
         <nav className="mt-6">
           <ul>
