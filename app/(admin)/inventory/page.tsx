@@ -41,6 +41,10 @@ export default function InventoryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sharing, setSharing] = useState(false);
 
+  // Bulk delete (multi-select)
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
@@ -161,6 +165,48 @@ export default function InventoryPage() {
       toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const chosen = items.filter((i) => i.id && selected.has(i.id));
+    if (chosen.length === 0) {
+      toast({ title: "Nothing selected", description: "Tap sarees to select, then delete." });
+      return;
+    }
+    if (!confirm(`Delete ${chosen.length} saree(s)? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      const results = await Promise.allSettled(
+        chosen.map((item) =>
+          fetch("/api/inventory", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: item.id, imageUrl: item.image }),
+          }).then((r) => {
+            if (!r.ok) throw new Error("delete failed");
+            return item.id as string;
+          })
+        )
+      );
+      const okIds = new Set(
+        results.filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled").map((r) => r.value)
+      );
+      const failCount = results.length - okIds.size;
+      setItems((prev) => prev.filter((i) => !(i.id && okIds.has(i.id))));
+      setSelected(new Set());
+      if (failCount > 0) {
+        toast({
+          title: "Partly done",
+          description: `Deleted ${okIds.size}, ${failCount} failed.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Deleted", description: `${okIds.size} item(s) removed.` });
+        setSelectMode(false);
+      }
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -332,9 +378,17 @@ export default function InventoryPage() {
               <Button
                 variant={shareMode ? "default" : "outline"}
                 size="sm"
-                onClick={() => { setShareMode((s) => !s); setSelected(new Set()); }}
+                onClick={() => { setShareMode((s) => !s); setSelectMode(false); setSelected(new Set()); }}
               >
                 {shareMode ? "Cancel share" : "Share to WhatsApp"}
+              </Button>
+              <Button
+                variant={selectMode ? "default" : "outline"}
+                size="sm"
+                className={selectMode ? "bg-red-600 text-white hover:bg-red-700" : ""}
+                onClick={() => { setSelectMode((s) => !s); setShareMode(false); setSelected(new Set()); }}
+              >
+                {selectMode ? "Cancel" : "Select to delete"}
               </Button>
             </div>
           </div>
@@ -349,6 +403,29 @@ export default function InventoryPage() {
               <span className="text-sm text-green-800">{selected.size} selected</span>
               <Button size="sm" onClick={shareSelected} disabled={sharing || selected.size === 0}>
                 {sharing ? "Preparing…" : "Share selected"}
+              </Button>
+            </div>
+          )}
+          {selectMode && (
+            <div className="flex flex-wrap items-center gap-3 rounded-md bg-red-50 p-3">
+              <span className="text-sm text-red-800">{selected.size} selected</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSelected(new Set(filtered.map((i) => i.id).filter(Boolean) as string[]))}
+              >
+                Select all ({filtered.length})
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
+                Clear
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-600 text-white hover:bg-red-700"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting || selected.size === 0}
+              >
+                {bulkDeleting ? "Deleting…" : `Delete selected (${selected.size})`}
               </Button>
             </div>
           )}
@@ -367,10 +444,12 @@ export default function InventoryPage() {
               return (
                 <div
                   key={item.id}
-                  onClick={() => shareMode && toggleSelect(item.id)}
+                  onClick={() => (shareMode || selectMode) && toggleSelect(item.id)}
                   className={`group relative overflow-hidden rounded-lg border transition ${
                     item.status === "sold" ? "border-gray-300 opacity-60" : "border-gray-200"
-                  } ${shareMode ? "cursor-pointer" : ""} ${isSelected ? "ring-2 ring-green-500" : ""}`}
+                  } ${shareMode || selectMode ? "cursor-pointer" : ""} ${
+                    isSelected ? (selectMode ? "ring-2 ring-red-500" : "ring-2 ring-green-500") : ""
+                  }`}
                 >
                   <div className="relative aspect-square">
                     <Image src={item.image} alt={item.label || "Saree"} fill className="object-cover" sizes="(min-width: 1280px) 16vw, (min-width: 768px) 25vw, 50vw" unoptimized />
@@ -379,8 +458,8 @@ export default function InventoryPage() {
                         <span className="rounded-full bg-red-600 px-3 py-1 text-sm font-bold text-white">SOLD</span>
                       </div>
                     )}
-                    {shareMode && isSelected && (
-                      <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-white">✓</div>
+                    {(shareMode || selectMode) && isSelected && (
+                      <div className={`absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full text-white ${selectMode ? "bg-red-500" : "bg-green-500"}`}>✓</div>
                     )}
                   </div>
                   <div className="p-2">
@@ -391,7 +470,7 @@ export default function InventoryPage() {
                     </p>
                     {item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
                   </div>
-                  {!shareMode && (
+                  {!shareMode && !selectMode && (
                     <button
                       type="button"
                       aria-label="Delete saree"
