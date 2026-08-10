@@ -1,6 +1,8 @@
 import { StockItem } from "@/types/stock-item";
 
-function buildCaption(items: StockItem[]): string {
+const SHARE_TITLE = "Satyakrupa Silks Sarees";
+
+export function buildCaption(items: StockItem[]): string {
   return items
     .map((i) => {
       const attrs = [i.color, i.pattern, i.fabric].filter(Boolean).join(", ");
@@ -13,35 +15,71 @@ function buildCaption(items: StockItem[]): string {
     .join("\n");
 }
 
-/**
- * Share sarees to WhatsApp. On phones/iPads this opens the native share sheet
- * with the actual photos attached; elsewhere it falls back to a WhatsApp text
- * link with the details.
- */
-export async function shareItemsToWhatsApp(items: StockItem[]): Promise<void> {
-  if (items.length === 0) return;
-  const text = buildCaption(items);
+export function whatsappTextLink(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
 
+/** Download a saree photo as a File (for the native share sheet). */
+export async function fetchItemFile(item: StockItem): Promise<File | null> {
   try {
-    const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
-    if (nav.canShare) {
-      const files = await Promise.all(
-        items.slice(0, 10).map(async (i) => {
-          const res = await fetch(i.image);
-          const blob = await res.blob();
-          return new File([blob], `${i.code || "saree"}.jpg`, {
-            type: blob.type || "image/jpeg",
-          });
-        })
-      );
-      if (nav.canShare({ files })) {
-        await navigator.share({ files, text, title: "Satyakrupa Silks Sarees" });
-        return;
-      }
-    }
+    const res = await fetch(item.image, { mode: "cors" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const base = (item.code || item.label || "saree").replace(/[^\w.-]+/g, "_");
+    return new File([blob], `${base}.${ext}`, { type: blob.type || "image/jpeg" });
   } catch {
-    /* fall through to text link */
+    return null;
+  }
+}
+
+export type ShareResult = "shared" | "cancelled" | "text" | "empty";
+
+/**
+ * Share sarees to WhatsApp / the native share sheet.
+ *
+ * IMPORTANT: pass `readyFiles` that were fetched BEFORE the share tap. Calling
+ * navigator.share() straight after an await of image downloads makes iOS/Android
+ * treat the user gesture as expired and silently reject the share. With the files
+ * already in hand, share() fires inside the tap and the sheet opens reliably.
+ */
+export async function shareSarees(
+  items: StockItem[],
+  readyFiles?: File[]
+): Promise<ShareResult> {
+  if (items.length === 0) return "empty";
+  const text = buildCaption(items);
+  const hasCanShare =
+    typeof navigator !== "undefined" && typeof navigator.canShare === "function";
+  const hasShare =
+    typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  // Use pre-fetched files if given; otherwise fetch now (less reliable on iOS).
+  let files = readyFiles ?? [];
+  if (files.length === 0 && hasCanShare) {
+    files = (await Promise.all(items.slice(0, 10).map(fetchItemFile))).filter(
+      Boolean
+    ) as File[];
   }
 
-  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  if (files.length > 0 && hasCanShare && hasShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ files, text, title: SHARE_TITLE });
+      return "shared";
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") return "cancelled"; // user closed sheet
+      // any other error: fall through to the text link
+    }
+  }
+
+  // Fallback: WhatsApp text link (navigation is not popup-blocked).
+  const link = whatsappTextLink(text);
+  const win = window.open(link, "_blank");
+  if (!win) window.location.href = link;
+  return "text";
+}
+
+/** Backwards-compatible helper (fetches inline; prefer the hook for reliability). */
+export async function shareItemsToWhatsApp(items: StockItem[]): Promise<void> {
+  await shareSarees(items);
 }

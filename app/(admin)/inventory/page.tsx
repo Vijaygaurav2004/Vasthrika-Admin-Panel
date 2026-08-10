@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
 import { getCollections } from "@/lib/supabase/collections";
-import { shareItemsToWhatsApp } from "@/lib/share";
+import { useWhatsappShare } from "@/lib/use-share";
 import { compressImage } from "@/lib/image";
 import { QrScanner } from "@/components/admin/qr-scanner";
 
@@ -39,7 +39,7 @@ export default function InventoryPage() {
   // WhatsApp share
   const [shareMode, setShareMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [sharing, setSharing] = useState(false);
+  const { prefetch, share: shareToWhatsapp, sharing } = useWhatsappShare();
 
   // Bulk delete (multi-select)
   const [selectMode, setSelectMode] = useState(false);
@@ -226,11 +226,12 @@ export default function InventoryPage() {
       toast({ title: "Nothing selected", description: "Tap sarees to select, then share." });
       return;
     }
-    setSharing(true);
-    try {
-      await shareItemsToWhatsApp(chosen);
-    } finally {
-      setSharing(false);
+    const result = await shareToWhatsapp(chosen);
+    if (result === "text") {
+      toast({
+        title: "Opened WhatsApp with details",
+        description: "To attach the actual photos, open this on a phone or tablet.",
+      });
     }
   };
 
@@ -444,7 +445,14 @@ export default function InventoryPage() {
               return (
                 <div
                   key={item.id}
-                  onClick={() => (shareMode || selectMode) && toggleSelect(item.id)}
+                  onClick={() => {
+                    if (shareMode) {
+                      prefetch(item);
+                      toggleSelect(item.id);
+                    } else if (selectMode) {
+                      toggleSelect(item.id);
+                    }
+                  }}
                   className={`group relative overflow-hidden rounded-lg border transition ${
                     item.status === "sold" ? "border-gray-300 opacity-60" : "border-gray-200"
                   } ${shareMode || selectMode ? "cursor-pointer" : ""} ${

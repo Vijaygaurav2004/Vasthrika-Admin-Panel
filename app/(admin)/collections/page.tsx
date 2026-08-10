@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
-import { shareItemsToWhatsApp } from "@/lib/share";
+import { useWhatsappShare } from "@/lib/use-share";
 import {
   Collection,
   getCollections,
@@ -41,7 +41,7 @@ export default function CollectionsPage() {
   // Share-to-WhatsApp (inside a folder)
   const [shareMode, setShareMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [sharing, setSharing] = useState(false);
+  const { prefetch, share: shareToWhatsapp, sharing } = useWhatsappShare();
 
   // Filters inside an open folder
   const [folderStatus, setFolderStatus] = useState<"all" | "in_stock" | "sold">("all");
@@ -71,11 +71,12 @@ export default function CollectionsPage() {
       toast({ title: "Nothing selected", description: "Tap sarees to select, then share." });
       return;
     }
-    setSharing(true);
-    try {
-      await shareItemsToWhatsApp(chosen);
-    } finally {
-      setSharing(false);
+    const result = await shareToWhatsapp(chosen);
+    if (result === "text") {
+      toast({
+        title: "Opened WhatsApp with details",
+        description: "To attach the actual photos, open this on a phone or tablet.",
+      });
     }
   };
 
@@ -274,7 +275,12 @@ export default function CollectionsPage() {
               return (
                 <div
                   key={item.id}
-                  onClick={() => shareMode && toggleSelect(item.id)}
+                  onClick={() => {
+                    if (shareMode) {
+                      prefetch(item);
+                      toggleSelect(item.id);
+                    }
+                  }}
                   className={`overflow-hidden rounded-lg border transition ${item.status === "sold" ? "opacity-60" : ""} ${shareMode ? "cursor-pointer" : ""} ${isSelected ? "ring-2 ring-green-500" : ""}`}
                 >
                   <div className="relative aspect-square">
