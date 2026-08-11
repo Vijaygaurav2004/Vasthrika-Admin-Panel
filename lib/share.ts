@@ -60,9 +60,11 @@ export async function shareSarees(
   const hasShare =
     typeof navigator !== "undefined" && typeof navigator.share === "function";
 
-  // Use pre-fetched files if given; otherwise fetch now (less reliable on iOS).
+  // Use caller-managed files (from the hook) as-is — this keeps the share
+  // firing synchronously inside the tap, which iOS requires. Only fetch inline
+  // when no files were managed by the caller (legacy direct calls).
   let files = readyFiles ?? [];
-  if (files.length === 0 && hasCanShare) {
+  if (readyFiles === undefined && files.length === 0 && hasCanShare) {
     files = (await Promise.all(items.slice(0, 10).map(fetchItemFile))).filter(
       Boolean
     ) as File[];

@@ -39,7 +39,7 @@ export default function InventoryPage() {
   // WhatsApp share
   const [shareMode, setShareMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const { prefetch, share: shareToWhatsapp, sharing } = useWhatsappShare();
+  const { prefetch, isReady, share: shareToWhatsapp, sharing } = useWhatsappShare();
 
   // Bulk delete (multi-select)
   const [selectMode, setSelectMode] = useState(false);
@@ -399,14 +399,18 @@ export default function InventoryPage() {
             placeholder="Search by code, color, pattern, fabric, label…"
             className="max-w-md"
           />
-          {shareMode && (
-            <div className="flex items-center gap-3 rounded-md bg-green-50 p-3">
-              <span className="text-sm text-green-800">{selected.size} selected</span>
-              <Button size="sm" onClick={shareSelected} disabled={sharing || selected.size === 0}>
-                {sharing ? "Preparing…" : "Share selected"}
-              </Button>
-            </div>
-          )}
+          {shareMode && (() => {
+            const chosen = items.filter((i) => i.id && selected.has(i.id));
+            const ready = isReady(chosen);
+            return (
+              <div className="flex items-center gap-3 rounded-md bg-green-50 p-3">
+                <span className="text-sm text-green-800">{selected.size} selected</span>
+                <Button size="sm" onClick={shareSelected} disabled={sharing || selected.size === 0 || !ready}>
+                  {sharing ? "Opening…" : selected.size > 0 && !ready ? "Preparing photos…" : "Share selected"}
+                </Button>
+              </div>
+            );
+          })()}
           {selectMode && (
             <div className="flex flex-wrap items-center gap-3 rounded-md bg-red-50 p-3">
               <span className="text-sm text-red-800">{selected.size} selected</span>

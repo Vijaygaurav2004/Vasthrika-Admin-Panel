@@ -3,21 +3,40 @@ import { StockItem } from "@/types/stock-item";
 import { fetchItemFile, shareSarees, ShareResult } from "./share";
 
 /**
- * WhatsApp share with photo pre-fetching. Call `prefetch(item)` when a saree is
- * selected so its photo is downloaded ahead of time; then `share(items)` fires
- * navigator.share() instantly within the tap (keeps the user gesture alive so
- * iOS/Android actually open the share sheet).
+ * WhatsApp share with photo pre-fetching.
+ *
+ * Call `prefetch(item)` when a saree is selected — its photo downloads in the
+ * background. `isReady(items)` reports when every selected saree's photo is in
+ * hand; gate the Share button on it so the share fires instantly inside the tap
+ * (iOS cancels a share if photos are still downloading when it starts).
  */
 export function useWhatsappShare() {
   const cache = useRef<Map<string, File>>(new Map());
+  const inflight = useRef<Set<string>>(new Set());
+  const [settled, setSettled] = useState<Set<string>>(new Set());
   const [sharing, setSharing] = useState(false);
 
   const prefetch = useCallback((item: StockItem) => {
-    if (!item.id || cache.current.has(item.id)) return;
+    const id = item.id;
+    if (!id || cache.current.has(id) || inflight.current.has(id)) return;
+    inflight.current.add(id);
     fetchItemFile(item).then((f) => {
-      if (f && item.id) cache.current.set(item.id, f);
+      if (f) cache.current.set(id, f);
+      setSettled((prev) => {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
     });
   }, []);
+
+  // True once every selected saree's photo download has finished (success or not).
+  const isReady = useCallback(
+    (items: StockItem[]) =>
+      items.length > 0 && items.every((i) => i.id != null && settled.has(i.id)),
+    [settled]
+  );
 
   const share = useCallback(async (items: StockItem[]): Promise<ShareResult> => {
     setSharing(true);
@@ -25,13 +44,13 @@ export function useWhatsappShare() {
       const files = items
         .map((i) => (i.id ? cache.current.get(i.id) : undefined))
         .filter(Boolean) as File[];
-      // Only treat as "ready" if we have a photo for every selected saree.
-      const ready = files.length === items.length ? files : undefined;
-      return await shareSarees(items, ready);
+      // Always pass managed files (even if partial) so no await happens before
+      // navigator.share() — keeps the iOS user gesture alive.
+      return await shareSarees(items, files);
     } finally {
       setSharing(false);
     }
   }, []);
 
-  return { prefetch, share, sharing };
+  return { prefetch, isReady, share, sharing };
 }
