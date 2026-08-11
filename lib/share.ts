@@ -22,7 +22,13 @@ export function whatsappTextLink(text: string): string {
 /** Download a saree photo as a File (for the native share sheet). */
 export async function fetchItemFile(item: StockItem): Promise<File | null> {
   try {
-    const res = await fetch(item.image, { mode: "cors" });
+    // Cache-bust so this CORS fetch never reuses the <img> tag's cached
+    // non-CORS response (which would fail CORS and yield no file to share).
+    const sep = item.image.includes("?") ? "&" : "?";
+    const res = await fetch(`${item.image}${sep}share=1`, {
+      mode: "cors",
+      cache: "no-store",
+    });
     if (!res.ok) return null;
     const blob = await res.blob();
     const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
