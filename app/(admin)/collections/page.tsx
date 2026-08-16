@@ -16,6 +16,7 @@ import {
   renameCollection,
   deleteCollection,
   swapCollectionOrder,
+  moveItemsToCollection,
 } from "@/lib/supabase/collections";
 
 interface Folder {
@@ -43,6 +44,11 @@ export default function CollectionsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { prefetch, isReady, share: shareToWhatsapp, sharing } = useWhatsappShare();
 
+  // Move-to-folder (inside a folder)
+  const [moveMode, setMoveMode] = useState(false);
+  const [moveTarget, setMoveTarget] = useState("");
+  const [moving, setMoving] = useState(false);
+
   // Filters inside an open folder
   const [folderStatus, setFolderStatus] = useState<"all" | "in_stock" | "sold">("all");
   const [folderSearch, setFolderSearch] = useState("");
@@ -50,6 +56,8 @@ export default function CollectionsPage() {
   const closeFolder = () => {
     setOpenFolder(null);
     setShareMode(false);
+    setMoveMode(false);
+    setMoveTarget("");
     setSelected(new Set());
     setFolderStatus("all");
     setFolderSearch("");
@@ -77,6 +85,28 @@ export default function CollectionsPage() {
         title: "Opened WhatsApp with details",
         description: "To attach the actual photos, open this on a phone or tablet.",
       });
+    }
+  };
+
+  const handleMove = async (folderItems: StockItem[]) => {
+    const ids = folderItems.filter((i) => i.id && selected.has(i.id)).map((i) => i.id as string);
+    if (ids.length === 0 || !moveTarget) return;
+    setMoving(true);
+    try {
+      await moveItemsToCollection(ids, moveTarget);
+      toast({ title: "Moved", description: `${ids.length} saree(s) moved to "${moveTarget}".` });
+      setSelected(new Set());
+      setMoveMode(false);
+      setMoveTarget("");
+      await load();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to move",
+        variant: "destructive",
+      });
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -217,14 +247,22 @@ export default function CollectionsPage() {
           <h1 className="text-xl font-bold">{current.name}</h1>
           <span className="text-sm text-gray-500">({folderFiltered.length})</span>
           {current.items.length > 0 && (
-            <Button
-              variant={shareMode ? "default" : "outline"}
-              size="sm"
-              className="ml-auto"
-              onClick={() => { setShareMode((s) => !s); setSelected(new Set()); }}
-            >
-              {shareMode ? "Cancel" : "Share to WhatsApp"}
-            </Button>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant={shareMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setShareMode((s) => !s); setMoveMode(false); setSelected(new Set()); }}
+              >
+                {shareMode ? "Cancel" : "Share to WhatsApp"}
+              </Button>
+              <Button
+                variant={moveMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setMoveMode((m) => !m); setShareMode(false); setSelected(new Set()); setMoveTarget(""); }}
+              >
+                {moveMode ? "Cancel" : "Move to folder"}
+              </Button>
+            </div>
           )}
         </div>
 
@@ -264,6 +302,27 @@ export default function CollectionsPage() {
           );
         })()}
 
+        {moveMode && (
+          <div className="flex flex-wrap items-center gap-3 rounded-md bg-blue-50 p-3">
+            <span className="text-sm text-blue-800">{selected.size} selected</span>
+            <select
+              value={moveTarget}
+              onChange={(e) => setMoveTarget(e.target.value)}
+              className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="">Move to folder…</option>
+              {collections
+                .filter((c) => c.name !== current.name)
+                .map((c) => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+            </select>
+            <Button size="sm" onClick={() => handleMove(current.items)} disabled={moving || selected.size === 0 || !moveTarget}>
+              {moving ? "Moving…" : "Move here"}
+            </Button>
+          </div>
+        )}
+
         {current.items.length === 0 ? (
           <p className="rounded-lg border bg-white p-8 text-center text-gray-500 shadow-sm">
             This folder is empty. Add sarees to it from the Inventory screen.
@@ -283,9 +342,11 @@ export default function CollectionsPage() {
                     if (shareMode) {
                       prefetch(item);
                       toggleSelect(item.id);
+                    } else if (moveMode) {
+                      toggleSelect(item.id);
                     }
                   }}
-                  className={`overflow-hidden rounded-lg border transition ${item.status === "sold" ? "opacity-60" : ""} ${shareMode ? "cursor-pointer" : ""} ${isSelected ? "ring-2 ring-green-500" : ""}`}
+                  className={`overflow-hidden rounded-lg border transition ${item.status === "sold" ? "opacity-60" : ""} ${shareMode || moveMode ? "cursor-pointer" : ""} ${isSelected ? (moveMode ? "ring-2 ring-blue-500" : "ring-2 ring-green-500") : ""}`}
                 >
                   <div className="relative aspect-square">
                     <Image src={item.image} alt={item.label || "Saree"} fill className="object-cover" sizes="(min-width:768px) 20vw, 50vw" unoptimized />
@@ -294,8 +355,8 @@ export default function CollectionsPage() {
                         <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">SOLD</span>
                       </div>
                     )}
-                    {shareMode && isSelected && (
-                      <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-white">✓</div>
+                    {(shareMode || moveMode) && isSelected && (
+                      <div className={`absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full text-white ${moveMode ? "bg-blue-500" : "bg-green-500"}`}>✓</div>
                     )}
                   </div>
                   <div className="p-2">
