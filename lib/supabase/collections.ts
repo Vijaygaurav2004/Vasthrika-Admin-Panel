@@ -49,6 +49,17 @@ export async function renameCollection(id: string, oldName: string, newName: str
   await supabase.from("stock_items").update({ category: trimmed }).eq("category", oldName);
 }
 
+/** Move sarees (by id) into a different folder/collection. */
+export async function moveItemsToCollection(ids: string[], target: string): Promise<void> {
+  const name = target.trim();
+  if (!name || ids.length === 0) return;
+  const { error } = await supabase
+    .from("stock_items")
+    .update({ category: name, updated_at: new Date().toISOString() })
+    .in("id", ids);
+  if (error) throw error;
+}
+
 export async function deleteCollection(id: string, name: string): Promise<void> {
   // Move any sarees in this folder to "no folder" (they are NOT deleted).
   await supabase.from("stock_items").update({ category: null }).eq("category", name);

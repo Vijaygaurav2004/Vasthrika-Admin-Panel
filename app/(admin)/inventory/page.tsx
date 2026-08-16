@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
-import { getCollections } from "@/lib/supabase/collections";
+import { getCollections, moveItemsToCollection } from "@/lib/supabase/collections";
 import { useWhatsappShare } from "@/lib/use-share";
 import { compressImage } from "@/lib/image";
 import { QrScanner } from "@/components/admin/qr-scanner";
@@ -41,9 +41,11 @@ export default function InventoryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { prefetch, isReady, share: shareToWhatsapp, sharing } = useWhatsappShare();
 
-  // Bulk delete (multi-select)
+  // Bulk select (move / delete)
   const [selectMode, setSelectMode] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [moveTarget, setMoveTarget] = useState("");
+  const [moving, setMoving] = useState(false);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -207,6 +209,28 @@ export default function InventoryPage() {
       }
     } finally {
       setBulkDeleting(false);
+    }
+  };
+
+  const handleMove = async () => {
+    const ids = items.filter((i) => i.id && selected.has(i.id)).map((i) => i.id as string);
+    if (ids.length === 0 || !moveTarget) return;
+    setMoving(true);
+    try {
+      await moveItemsToCollection(ids, moveTarget);
+      toast({ title: "Moved", description: `${ids.length} saree(s) moved to "${moveTarget}".` });
+      setSelected(new Set());
+      setMoveTarget("");
+      setSelectMode(false);
+      fetchItems();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to move",
+        variant: "destructive",
+      });
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -386,10 +410,9 @@ export default function InventoryPage() {
               <Button
                 variant={selectMode ? "default" : "outline"}
                 size="sm"
-                className={selectMode ? "bg-red-600 text-white hover:bg-red-700" : ""}
-                onClick={() => { setSelectMode((s) => !s); setShareMode(false); setSelected(new Set()); }}
+                onClick={() => { setSelectMode((s) => !s); setShareMode(false); setSelected(new Set()); setMoveTarget(""); }}
               >
-                {selectMode ? "Cancel" : "Select to delete"}
+                {selectMode ? "Cancel" : "Select (move / delete)"}
               </Button>
             </div>
           </div>
@@ -412,8 +435,8 @@ export default function InventoryPage() {
             );
           })()}
           {selectMode && (
-            <div className="flex flex-wrap items-center gap-3 rounded-md bg-red-50 p-3">
-              <span className="text-sm text-red-800">{selected.size} selected</span>
+            <div className="flex flex-wrap items-center gap-3 rounded-md bg-gray-50 p-3">
+              <span className="text-sm font-medium text-gray-700">{selected.size} selected</span>
               <Button
                 size="sm"
                 variant="outline"
@@ -424,6 +447,25 @@ export default function InventoryPage() {
               <Button size="sm" variant="outline" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
                 Clear
               </Button>
+              <span className="mx-1 h-5 w-px bg-gray-300" />
+              <select
+                value={moveTarget}
+                onChange={(e) => setMoveTarget(e.target.value)}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
+              >
+                <option value="">Move to folder…</option>
+                {folderNames.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                onClick={handleMove}
+                disabled={moving || selected.size === 0 || !moveTarget}
+              >
+                {moving ? "Moving…" : "Move here"}
+              </Button>
+              <span className="mx-1 h-5 w-px bg-gray-300" />
               <Button
                 size="sm"
                 className="bg-red-600 text-white hover:bg-red-700"

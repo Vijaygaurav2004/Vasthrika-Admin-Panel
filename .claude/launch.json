@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "support-rag",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/gauravk/Desktop/support-automation/rag/server.js"],
+      "port": 3000
+    },
+    {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    }
+  ]
+}
