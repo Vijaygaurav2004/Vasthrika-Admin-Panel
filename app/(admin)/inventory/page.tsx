@@ -250,7 +250,22 @@ export default function InventoryPage() {
       toast({ title: "Nothing selected", description: "Tap sarees to select, then share." });
       return;
     }
-    const result = await shareToWhatsapp(chosen);
+    const { result, shared } = await shareToWhatsapp(chosen);
+    if (shared.length > 0) {
+      const sharedIds = new Set(shared.map((i) => i.id));
+      setSelected((prev) => {
+        const next = new Set(prev);
+        sharedIds.forEach((id) => id && next.delete(id));
+        return next;
+      });
+      const left = chosen.length - shared.length;
+      if (left > 0) {
+        toast({
+          title: `Shared ${shared.length} (max per WhatsApp)`,
+          description: `${left} still selected — tap "Share selected" again to send the next batch.`,
+        });
+      }
+    }
     if (result === "text") {
       toast({
         title: "Opened WhatsApp with details",
