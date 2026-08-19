@@ -1,7 +1,5 @@
 import { StockItem } from "@/types/stock-item";
 
-const SHARE_TITLE = "Satyakrupa Silks Sarees";
-
 export function buildCaption(items: StockItem[]): string {
   return items
     .map((i) => {
@@ -72,7 +70,8 @@ export async function shareSarees(
 
   if (files.length > 0 && hasCanShare && hasShare && navigator.canShare({ files })) {
     try {
-      await navigator.share({ files, text, title: SHARE_TITLE });
+      // Photos only — no caption text (customer just gets the images).
+      await navigator.share({ files });
       return "shared";
     } catch (e) {
       if ((e as Error)?.name === "AbortError") return "cancelled"; // user closed sheet
