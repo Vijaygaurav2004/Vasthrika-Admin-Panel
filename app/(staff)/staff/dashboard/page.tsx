@@ -1,4 +1,4 @@
-// app/(admin)/dashboard/page.tsx
+// app/(staff)/staff/dashboard/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -6,10 +6,13 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { getStockItems } from "@/lib/supabase/stock-items";
 import { StockItem } from "@/types/stock-item";
+import { useIsAdmin } from "@/lib/use-role";
+import { displayName } from "@/lib/role";
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
 export default function DashboardPage() {
+  const isAdmin = useIsAdmin();
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,12 +23,11 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const startToday = useMemo(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime(); }, []);
+  const startMonth = useMemo(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1).getTime(); }, []);
+
   const stats = useMemo(() => {
-    const now = new Date();
-    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    let inStock = 0, sold = 0, soldToday = 0, soldMonth = 0, addedToday = 0, addedMonth = 0;
-    let stockValue = 0, soldValueMonth = 0;
+    let inStock = 0, sold = 0, soldToday = 0, soldMonth = 0, addedToday = 0, addedMonth = 0, stockValue = 0;
     const folders = new Set<string>();
     for (const it of items) {
       if (it.category) folders.add(it.category);
@@ -36,13 +38,42 @@ export default function DashboardPage() {
         sold++;
         const s = it.sold_at ? new Date(it.sold_at).getTime() : 0;
         if (s >= startToday) soldToday++;
-        if (s >= startMonth) { soldMonth++; if (it.price) soldValueMonth += Number(it.price); }
+        if (s >= startMonth) soldMonth++;
       } else {
         inStock++;
         if (it.price) stockValue += Number(it.price);
       }
     }
-    return { total: items.length, inStock, sold, soldToday, soldMonth, addedToday, addedMonth, stockValue, soldValueMonth, folders: folders.size };
+    return { total: items.length, inStock, sold, soldToday, soldMonth, addedToday, addedMonth, stockValue, folders: folders.size };
+  }, [items, startToday, startMonth]);
+
+  // Per-staff activity this month (admin view).
+  const staffActivity = useMemo(() => {
+    const map = new Map<string, { added: number; sold: number }>();
+    const bump = (who: string | undefined, key: "added" | "sold") => {
+      if (!who) return;
+      const cur = map.get(who) || { added: 0, sold: 0 };
+      cur[key]++;
+      map.set(who, cur);
+    };
+    for (const it of items) {
+      const c = it.created_at ? new Date(it.created_at).getTime() : 0;
+      if (c >= startMonth) bump(it.created_by, "added");
+      if (it.status === "sold" && it.sold_at && new Date(it.sold_at).getTime() >= startMonth) bump(it.sold_by, "sold");
+    }
+    return Array.from(map.entries())
+      .map(([email, v]) => ({ email, ...v }))
+      .sort((a, b) => b.added + b.sold - (a.added + a.sold));
+  }, [items, startMonth]);
+
+  const activity = useMemo(() => {
+    const events: { type: "added" | "sold"; at: number; who?: string; item: StockItem }[] = [];
+    for (const it of items) {
+      if (it.created_at) events.push({ type: "added", at: new Date(it.created_at).getTime(), who: it.created_by, item: it });
+      if (it.status === "sold" && it.sold_at) events.push({ type: "sold", at: new Date(it.sold_at).getTime(), who: it.sold_by, item: it });
+    }
+    events.sort((a, b) => b.at - a.at);
+    return events.slice(0, 30);
   }, [items]);
 
   const daily = useMemo(() => {
@@ -56,53 +87,54 @@ export default function DashboardPage() {
       for (const it of items) {
         const c = it.created_at ? new Date(it.created_at).getTime() : 0;
         if (c >= start && c < end) added++;
-        if (it.status === "sold" && it.sold_at) {
-          const s = new Date(it.sold_at).getTime();
-          if (s >= start && s < end) sold++;
-        }
+        if (it.status === "sold" && it.sold_at) { const s = new Date(it.sold_at).getTime(); if (s >= start && s < end) sold++; }
       }
       days.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, added, sold });
     }
     return days;
   }, [items]);
 
-  const activity = useMemo(() => {
-    const events: { type: "added" | "sold"; at: number; item: StockItem }[] = [];
-    for (const it of items) {
-      if (it.created_at) events.push({ type: "added", at: new Date(it.created_at).getTime(), item: it });
-      if (it.status === "sold" && it.sold_at) events.push({ type: "sold", at: new Date(it.sold_at).getTime(), item: it });
-    }
-    events.sort((a, b) => b.at - a.at);
-    return events.slice(0, 25);
-  }, [items]);
-
   const maxBar = Math.max(1, ...daily.map((d) => Math.max(d.added, d.sold)));
 
   if (loading) {
-    return (
-      <div>
-        <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
-        <p className="py-12 text-center text-gray-400">Loading activity…</p>
-      </div>
-    );
+    return <div><h1 className="mb-6 text-2xl font-bold">Dashboard</h1><p className="py-12 text-center text-gray-400">Loading activity…</p></div>;
   }
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Stat label="In Stock" value={stats.inStock} accent="text-green-600" href="/inventory" />
-        <Stat label="Sold (total)" value={stats.sold} accent="text-gray-700" href="/inventory" />
+        <Stat label="In Stock" value={stats.inStock} accent="text-green-600" href="/staff/inventory" />
+        <Stat label="Sold (total)" value={stats.sold} accent="text-gray-700" href="/staff/inventory" />
         <Stat label="Sold this month" value={stats.soldMonth} sub={stats.soldToday ? `${stats.soldToday} today` : undefined} accent="text-blue-600" />
         <Stat label="Added this month" value={stats.addedMonth} sub={stats.addedToday ? `${stats.addedToday} today` : undefined} accent="text-indigo-600" />
-        <Stat label="Stock value" value={inr(stats.stockValue)} accent="text-emerald-600" />
-        <Stat label="Folders" value={stats.folders} accent="text-gray-700" href="/collections" />
+        {isAdmin && <Stat label="Stock value" value={inr(stats.stockValue)} accent="text-emerald-600" />}
+        <Stat label="Folders" value={stats.folders} accent="text-gray-700" href="/staff/collections" />
       </div>
 
+      {/* Staff activity — admin only */}
+      {isAdmin && staffActivity.length > 0 && (
+        <div className="rounded-lg border bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Staff activity (this month)</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {staffActivity.map((s) => (
+              <div key={s.email} className="flex items-center justify-between rounded-md border bg-gray-50 px-4 py-3">
+                <div>
+                  <p className="font-medium">{displayName(s.email)}</p>
+                  <p className="text-[11px] text-gray-400">{s.email}</p>
+                </div>
+                <div className="flex gap-4 text-sm">
+                  <span className="text-indigo-600"><b>{s.added}</b> added</span>
+                  <span className="text-green-600"><b>{s.sold}</b> sold</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* 14-day activity chart */}
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Last 14 days</h2>
@@ -124,7 +156,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Recent activity feed */}
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">Recent activity</h2>
           {activity.length === 0 ? (
@@ -139,12 +170,13 @@ export default function DashboardPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">
+                      {e.who ? <span className="font-medium">{displayName(e.who)} </span> : null}
                       <span className={e.type === "sold" ? "font-semibold text-green-700" : "font-semibold text-indigo-700"}>
-                        {e.type === "sold" ? "Sold" : "Added"}
+                        {e.type === "sold" ? "sold" : "added"}
                       </span>{" "}
                       <span className="font-mono text-xs">{e.item.code || "—"}</span>
                       {e.item.category ? <span className="text-gray-500"> · {e.item.category}</span> : null}
-                      {e.type === "sold" && e.item.price != null ? <span className="text-gray-500"> · {inr(Number(e.item.price))}</span> : null}
+                      {isAdmin && e.type === "sold" && e.item.price != null ? <span className="text-gray-500"> · {inr(Number(e.item.price))}</span> : null}
                     </p>
                     <p className="text-[11px] text-gray-400">{formatDistanceToNow(new Date(e.at), { addSuffix: true })}</p>
                   </div>

@@ -7,9 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { QrScanner } from "@/components/admin/qr-scanner";
+import { useActor, useIsAdmin } from "@/lib/use-role";
 import { StockItem } from "@/types/stock-item";
 
 export default function SellPage() {
+  const actor = useActor();
+  const isAdmin = useIsAdmin();
   const [scanning, setScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [current, setCurrent] = useState<StockItem | null>(null);
@@ -62,6 +65,7 @@ export default function SellPage() {
           code: current.code,
           buyer_name: buyerName,
           buyer_phone: buyerPhone,
+          actor,
         }),
       });
       const data = await res.json();
@@ -129,7 +133,7 @@ export default function SellPage() {
               <p className="mt-1 text-xs text-gray-500">
                 {[current.color, current.pattern, current.fabric].filter(Boolean).join(" · ") || "No attributes"}
               </p>
-              {current.price != null && (
+              {isAdmin && current.price != null && (
                 <p className="mt-1 text-sm font-medium">₹{current.price}</p>
               )}
             </div>

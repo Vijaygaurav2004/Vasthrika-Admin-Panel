@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
 import { useWhatsappShare } from "@/lib/use-share";
+import { useIsAdmin } from "@/lib/use-role";
 import {
   Collection,
   getCollections,
@@ -29,6 +30,7 @@ interface Folder {
 }
 
 export default function CollectionsPage() {
+  const isAdmin = useIsAdmin();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,7 +381,7 @@ export default function CollectionsPage() {
                     <p className="truncate text-[11px] text-gray-500">
                       {[item.color, item.pattern, item.fabric].filter(Boolean).join(" · ")}
                     </p>
-                    {item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
+                    {isAdmin && item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
                   </div>
                 </div>
               );

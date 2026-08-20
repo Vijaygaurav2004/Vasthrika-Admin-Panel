@@ -12,6 +12,8 @@ ALTER TABLE stock_items ADD COLUMN IF NOT EXISTS fabric TEXT;
 ALTER TABLE stock_items ADD COLUMN IF NOT EXISTS price NUMERIC;
 ALTER TABLE stock_items ADD COLUMN IF NOT EXISTS buyer_name TEXT;
 ALTER TABLE stock_items ADD COLUMN IF NOT EXISTS buyer_phone TEXT;
+ALTER TABLE stock_items ADD COLUMN IF NOT EXISTS created_by TEXT;
+ALTER TABLE stock_items ADD COLUMN IF NOT EXISTS sold_by TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS stock_items_code_unique
   ON stock_items (code)

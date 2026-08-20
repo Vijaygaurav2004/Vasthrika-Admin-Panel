@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     const fabric = (formData.get("fabric") as string | null)?.trim() || null;
     const priceRaw = (formData.get("price") as string | null)?.trim();
     const price = priceRaw ? Number(priceRaw) : null;
+    const actor = (formData.get("actor") as string | null)?.trim() || null;
 
     if (!files.length) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
@@ -120,6 +121,11 @@ export async function POST(request: NextRequest) {
           errors.push(`DB insert failed: ${insertError.message || insertError.code}`);
           console.error("Insert error:", JSON.stringify(insertError, null, 2));
           continue;
+        }
+
+        // Best-effort: record who added it. Ignored if the column isn't there yet.
+        if (actor && item?.id) {
+          await supabase.from("stock_items").update({ created_by: actor }).eq("id", item.id);
         }
 
         results.push(item);

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 // POST /api/sell  { code, buyer_name?, buyer_phone? }  -> mark that saree sold
 export async function POST(request: NextRequest) {
   try {
-    const { code, buyer_name, buyer_phone } = await request.json();
+    const { code, buyer_name, buyer_phone, actor } = await request.json();
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "No code provided" }, { status: 400 });
     }
@@ -78,6 +78,11 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       return NextResponse.json({ error: "Failed to mark sold" }, { status: 500 });
+    }
+
+    // Best-effort: record who sold it. Ignored if the column isn't there yet.
+    if (typeof actor === "string" && actor.trim()) {
+      await supabase.from("stock_items").update({ sold_by: actor.trim() }).eq("id", existing.id);
     }
 
     return NextResponse.json({ success: true, item: updated });

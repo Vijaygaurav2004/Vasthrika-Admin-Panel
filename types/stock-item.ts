@@ -14,6 +14,8 @@ export interface StockItem {
   sold_at?: string;
   buyer_name?: string;
   buyer_phone?: string;
+  created_by?: string;
+  sold_by?: string;
   created_at?: string;
   updated_at?: string;
 }

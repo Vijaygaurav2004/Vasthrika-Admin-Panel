@@ -11,6 +11,7 @@ import { StockItem } from "@/types/stock-item";
 import { getStockItems } from "@/lib/supabase/stock-items";
 import { getCollections, moveItemsToCollection } from "@/lib/supabase/collections";
 import { useWhatsappShare } from "@/lib/use-share";
+import { useActor, useIsAdmin } from "@/lib/use-role";
 import { compressImage } from "@/lib/image";
 import { QrScanner } from "@/components/admin/qr-scanner";
 
@@ -40,6 +41,8 @@ export default function InventoryPage() {
   const [shareMode, setShareMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { prefetch, isReady, share: shareToWhatsapp, sharing } = useWhatsappShare();
+  const actor = useActor();
+  const isAdmin = useIsAdmin();
 
   // Bulk select (move / delete)
   const [selectMode, setSelectMode] = useState(false);
@@ -126,6 +129,7 @@ export default function InventoryPage() {
       if (fabric.trim()) formData.append("fabric", fabric.trim());
       if (category.trim()) formData.append("category", category.trim());
       if (price.trim()) formData.append("price", price.trim());
+      if (actor) formData.append("actor", actor);
 
       const response = await fetch("/api/inventory", { method: "POST", body: formData });
       const data = await response.json();
@@ -338,10 +342,12 @@ export default function InventoryPage() {
             <Label htmlFor="label">Label / Batch</Label>
             <Input id="label" className="mt-1" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g., July Batch" />
           </div>
-          <div>
-            <Label htmlFor="price">Price (₹)</Label>
-            <Input id="price" className="mt-1" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g., 2500" />
-          </div>
+          {isAdmin && (
+            <div>
+              <Label htmlFor="price">Price (₹)</Label>
+              <Input id="price" className="mt-1" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g., 2500" />
+            </div>
+          )}
           <div>
             <Label htmlFor="color">Color</Label>
             <Input id="color" className="mt-1" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g., Red" />
@@ -537,7 +543,7 @@ export default function InventoryPage() {
                     <p className="truncate text-[11px] text-gray-500">
                       {[item.color, item.pattern, item.fabric].filter(Boolean).join(" · ")}
                     </p>
-                    {item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
+                    {isAdmin && item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
                   </div>
                   {!shareMode && !selectMode && (
                     <button
