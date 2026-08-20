@@ -10,7 +10,7 @@ import { isAdminEmail } from "@/lib/role";
 const NAV = [
   { href: "/staff/dashboard", label: "Dashboard" },
   { href: "/staff/inventory", label: "Inventory" },
-  { href: "/staff/collections", label: "Collections" },
+  { href: "/staff/collections", label: "Collections", adminOnly: true },
   { href: "/staff/sell", label: "Sell (Scan)" },
   { href: "/staff/labels", label: "QR Labels" },
 ];
@@ -45,7 +45,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         </div>
         <nav className="mt-6">
           <ul>
-            {NAV.map((n) => (
+            {NAV.filter((n) => admin || !n.adminOnly).map((n) => (
               <li key={n.href}>
                 <Link
                   href={n.href}

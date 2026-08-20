@@ -104,14 +104,16 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Stat label="In Stock" value={stats.inStock} accent="text-green-600" href="/staff/inventory" />
-        <Stat label="Sold (total)" value={stats.sold} accent="text-gray-700" href="/staff/inventory" />
-        <Stat label="Sold this month" value={stats.soldMonth} sub={stats.soldToday ? `${stats.soldToday} today` : undefined} accent="text-blue-600" />
-        <Stat label="Added this month" value={stats.addedMonth} sub={stats.addedToday ? `${stats.addedToday} today` : undefined} accent="text-indigo-600" />
-        {isAdmin && <Stat label="Stock value" value={inr(stats.stockValue)} accent="text-emerald-600" />}
-        <Stat label="Folders" value={stats.folders} accent="text-gray-700" href="/staff/collections" />
-      </div>
+      {isAdmin && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <Stat label="In Stock" value={stats.inStock} accent="text-green-600" href="/staff/inventory" />
+          <Stat label="Sold (total)" value={stats.sold} accent="text-gray-700" href="/staff/inventory" />
+          <Stat label="Sold this month" value={stats.soldMonth} sub={stats.soldToday ? `${stats.soldToday} today` : undefined} accent="text-blue-600" />
+          <Stat label="Added this month" value={stats.addedMonth} sub={stats.addedToday ? `${stats.addedToday} today` : undefined} accent="text-indigo-600" />
+          <Stat label="Stock value" value={inr(stats.stockValue)} accent="text-emerald-600" />
+          <Stat label="Folders" value={stats.folders} accent="text-gray-700" href="/staff/collections" />
+        </div>
+      )}
 
       {/* Staff activity — admin only */}
       {isAdmin && staffActivity.length > 0 && (
@@ -134,7 +136,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className={`grid gap-6 ${isAdmin ? "lg:grid-cols-2" : ""}`}>
+        {isAdmin && (
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Last 14 days</h2>
@@ -155,6 +158,7 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+        )}
 
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">Recent activity</h2>

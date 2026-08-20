@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,6 +158,12 @@ export default function CollectionsPage() {
     load();
   }, [load]);
 
+  // Collections is owner-only; staff are sent back to the dashboard.
+  const router = useRouter();
+  useEffect(() => {
+    if (!isAdmin) router.replace("/staff/dashboard");
+  }, [isAdmin, router]);
+
   const folders: Folder[] = useMemo(() => {
     return collections.map((c) => {
       const its = items.filter((i) => (i.category?.trim() || "") === c.name);
@@ -244,6 +251,9 @@ export default function CollectionsPage() {
       setBusy(false);
     }
   };
+
+  // Staff never see Collections (redirect is in-flight).
+  if (!isAdmin) return null;
 
   // ---- Drill-down: one folder's sarees ----
   if (current) {
