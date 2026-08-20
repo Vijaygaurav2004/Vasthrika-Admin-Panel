@@ -116,23 +116,29 @@ export default function DashboardPage() {
       )}
 
       {/* Staff activity — admin only */}
-      {isAdmin && staffActivity.length > 0 && (
+      {isAdmin && (
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">Staff activity (this month)</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {staffActivity.map((s) => (
-              <div key={s.email} className="flex items-center justify-between rounded-md border bg-gray-50 px-4 py-3">
-                <div>
-                  <p className="font-medium">{displayName(s.email)}</p>
-                  <p className="text-[11px] text-gray-400">{s.email}</p>
+          {staffActivity.length === 0 ? (
+            <p className="text-sm text-gray-400">
+              No staff activity yet — it appears here once staff add or sell sarees with their own logins.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {staffActivity.map((s) => (
+                <div key={s.email} className="flex items-center justify-between rounded-md border bg-gray-50 px-4 py-3">
+                  <div>
+                    <p className="font-medium">{displayName(s.email)}</p>
+                    <p className="text-[11px] text-gray-400">{s.email}</p>
+                  </div>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-indigo-600"><b>{s.added}</b> added</span>
+                    <span className="text-green-600"><b>{s.sold}</b> sold</span>
+                  </div>
                 </div>
-                <div className="flex gap-4 text-sm">
-                  <span className="text-indigo-600"><b>{s.added}</b> added</span>
-                  <span className="text-green-600"><b>{s.sold}</b> sold</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

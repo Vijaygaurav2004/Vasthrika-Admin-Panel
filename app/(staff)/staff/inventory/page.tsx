@@ -421,20 +421,24 @@ export default function InventoryPage() {
                   {f === "in_stock" ? "In Stock" : f === "sold" ? "Sold" : "All"}
                 </Button>
               ))}
-              <Button
-                variant={shareMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => { setShareMode((s) => !s); setSelectMode(false); setSelected(new Set()); }}
-              >
-                {shareMode ? "Cancel share" : "Share to WhatsApp"}
-              </Button>
-              <Button
-                variant={selectMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => { setSelectMode((s) => !s); setShareMode(false); setSelected(new Set()); setMoveTarget(""); }}
-              >
-                {selectMode ? "Cancel" : "Select (move / delete)"}
-              </Button>
+              {isAdmin && (
+                <>
+                  <Button
+                    variant={shareMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => { setShareMode((s) => !s); setSelectMode(false); setSelected(new Set()); }}
+                  >
+                    {shareMode ? "Cancel share" : "Share to WhatsApp"}
+                  </Button>
+                  <Button
+                    variant={selectMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => { setSelectMode((s) => !s); setShareMode(false); setSelected(new Set()); setMoveTarget(""); }}
+                  >
+                    {selectMode ? "Cancel" : "Select (move / delete)"}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           <Input
