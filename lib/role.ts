@@ -7,6 +7,7 @@ const FALLBACK_STAFF = [
   "sai@satyakrupa.com",
   "arun@satyakrupa.com",
   "govardan@satyakrupa.com",
+  "murthy@satyakrupa.com",
 ];
 
 export function staffEmails(): string[] {
