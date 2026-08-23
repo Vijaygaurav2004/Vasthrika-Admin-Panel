@@ -338,18 +338,6 @@ export default function InventoryPage() {
               ))}
             </datalist>
           </div>
-          {isAdmin && (
-            <div>
-              <Label htmlFor="label">Label / Batch</Label>
-              <Input id="label" className="mt-1" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g., July Batch" />
-            </div>
-          )}
-          {isAdmin && (
-            <div>
-              <Label htmlFor="price">Price (₹)</Label>
-              <Input id="price" className="mt-1" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g., 2500" />
-            </div>
-          )}
           <div>
             <Label htmlFor="color">Color</Label>
             <Input id="color" className="mt-1" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g., Red" />
@@ -358,12 +346,6 @@ export default function InventoryPage() {
             <Label htmlFor="pattern">Pattern</Label>
             <Input id="pattern" className="mt-1" value={pattern} onChange={(e) => setPattern(e.target.value)} placeholder="e.g., Floral" />
           </div>
-          {isAdmin && (
-            <div>
-              <Label htmlFor="fabric">Fabric</Label>
-              <Input id="fabric" className="mt-1" value={fabric} onChange={(e) => setFabric(e.target.value)} placeholder="e.g., Silk" />
-            </div>
-          )}
         </div>
 
         <div
