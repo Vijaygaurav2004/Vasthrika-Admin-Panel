@@ -51,12 +51,13 @@ export default function CollectionsPage() {
   const [moveMode, setMoveMode] = useState(false);
   const [moveTarget, setMoveTarget] = useState("");
   const [moving, setMoving] = useState(false);
+  const [deletingSel, setDeletingSel] = useState(false);
 
   // Filters inside an open folder
   const [folderStatus, setFolderStatus] = useState<"all" | "in_stock" | "sold">("all");
   const [folderSearch, setFolderSearch] = useState("");
 
-  const closeFolder = () => {
+  const resetFolderView = () => {
     setOpenFolder(null);
     setShareMode(false);
     setMoveMode(false);
@@ -65,6 +66,32 @@ export default function CollectionsPage() {
     setFolderStatus("all");
     setFolderSearch("");
   };
+
+  // Opening a folder pushes a history entry so the phone/browser back button
+  // returns to the folder grid instead of leaving Collections.
+  const openFolderView = (name: string) => {
+    setOpenFolder(name);
+    try {
+      window.history.pushState({ folder: name }, "");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const closeFolder = () => {
+    try {
+      window.history.back();
+    } catch {
+      resetFolderView();
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onPop = () => resetFolderView();
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const toggleSelect = (id?: string) => {
     if (!id) return;
@@ -125,6 +152,32 @@ export default function CollectionsPage() {
       });
     } finally {
       setMoving(false);
+    }
+  };
+
+  const handleDeleteSelected = async (folderItems: StockItem[]) => {
+    const chosen = folderItems.filter((i) => i.id && selected.has(i.id));
+    if (chosen.length === 0) return;
+    if (!window.confirm(`Delete ${chosen.length} saree(s)? This cannot be undone. (To record a sale, use Sell instead.)`)) return;
+    setDeletingSel(true);
+    try {
+      await Promise.allSettled(
+        chosen.map((item) =>
+          fetch("/api/inventory", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: item.id, imageUrl: item.image }),
+          })
+        )
+      );
+      toast({ title: "Deleted", description: `${chosen.length} saree(s) removed.` });
+      setSelected(new Set());
+      setMoveMode(false);
+      await load();
+    } catch {
+      toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
+    } finally {
+      setDeletingSel(false);
     }
   };
 
@@ -287,7 +340,7 @@ export default function CollectionsPage() {
                 size="sm"
                 onClick={() => { setMoveMode((m) => !m); setShareMode(false); setSelected(new Set()); setMoveTarget(""); }}
               >
-                {moveMode ? "Cancel" : "Move to folder"}
+                {moveMode ? "Cancel" : "Select (move / delete)"}
               </Button>
             </div>
           )}
@@ -346,6 +399,15 @@ export default function CollectionsPage() {
             </select>
             <Button size="sm" onClick={() => handleMove(current.items)} disabled={moving || selected.size === 0 || !moveTarget}>
               {moving ? "Moving…" : "Move here"}
+            </Button>
+            <span className="mx-1 h-5 w-px bg-gray-300" />
+            <Button
+              size="sm"
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => handleDeleteSelected(current.items)}
+              disabled={deletingSel || selected.size === 0}
+            >
+              {deletingSel ? "Deleting…" : "Delete selected"}
             </Button>
           </div>
         )}
@@ -464,7 +526,7 @@ export default function CollectionsPage() {
           <p className="text-sm text-gray-500">{visibleFolders.length} folders</p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {visibleFolders.map((folder) => (
-              <button key={folder.id} onClick={() => setOpenFolder(folder.name)} className="group text-left">
+              <button key={folder.id} onClick={() => openFolderView(folder.name)} className="group text-left">
                 <div className="relative aspect-square overflow-hidden rounded-xl border bg-gray-100 shadow-sm transition group-hover:shadow-md">
                   {folder.cover ? (
                     <Image src={folder.cover} alt={folder.name} fill className="object-cover" sizes="(min-width:768px) 20vw, 50vw" unoptimized />
