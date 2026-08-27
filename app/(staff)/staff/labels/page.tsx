@@ -178,10 +178,12 @@ export default function LabelsPage() {
             <Input
               id="start"
               type="number"
-              min={1}
               value={startNumber}
-              onChange={(e) => setStartNumber(Math.max(1, Number(e.target.value)))}
+              readOnly
+              disabled
+              className="cursor-not-allowed bg-gray-100 text-gray-600"
             />
+            <p className="mt-1 text-[11px] text-gray-400">Set automatically — continues from the last used code.</p>
           </div>
           <div>
             <Label htmlFor="qty">How many</Label>
