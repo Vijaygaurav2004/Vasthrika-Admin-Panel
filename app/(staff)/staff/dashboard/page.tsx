@@ -3,11 +3,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { getStockItems } from "@/lib/supabase/stock-items";
 import { StockItem } from "@/types/stock-item";
 import { useIsAdmin } from "@/lib/use-role";
 import { displayName } from "@/lib/role";
+import { Input } from "@/components/ui/input";
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
@@ -66,15 +67,29 @@ export default function DashboardPage() {
       .sort((a, b) => b.added + b.sold - (a.added + a.sold));
   }, [items, startMonth]);
 
-  const activity = useMemo(() => {
+  const allEvents = useMemo(() => {
     const events: { type: "added" | "sold"; at: number; who?: string; item: StockItem }[] = [];
     for (const it of items) {
       if (it.created_at) events.push({ type: "added", at: new Date(it.created_at).getTime(), who: it.created_by, item: it });
       if (it.status === "sold" && it.sold_at) events.push({ type: "sold", at: new Date(it.sold_at).getTime(), who: it.sold_by, item: it });
     }
     events.sort((a, b) => b.at - a.at);
-    return events.slice(0, 30);
+    return events;
   }, [items]);
+
+  const [activitySearch, setActivitySearch] = useState("");
+  const RENDER_CAP = 200;
+  const filteredActivity = useMemo(() => {
+    const q = activitySearch.trim().toLowerCase();
+    const base = q
+      ? allEvents.filter((e) =>
+          [e.item.code, e.item.category, e.item.label]
+            .filter(Boolean)
+            .some((v) => String(v).toLowerCase().includes(q))
+        )
+      : allEvents;
+    return { total: base.length, rows: base.slice(0, RENDER_CAP) };
+  }, [allEvents, activitySearch]);
 
   const daily = useMemo(() => {
     const now = new Date();
@@ -167,32 +182,54 @@ export default function DashboardPage() {
         )}
 
         <div className="rounded-lg border bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">Recent activity</h2>
-          {activity.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">No activity yet.</p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Recent activity</h2>
+            <span className="text-xs text-gray-400">
+              {activitySearch ? `${filteredActivity.total} match(es)` : `${allEvents.length} total`}
+            </span>
+          </div>
+          <Input
+            value={activitySearch}
+            onChange={(e) => setActivitySearch(e.target.value)}
+            placeholder="Search a QR code, folder or label…"
+            className="mb-3"
+          />
+          {filteredActivity.rows.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">
+              {activitySearch ? "No activity matches that search." : "No activity yet."}
+            </p>
           ) : (
-            <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              {activity.map((e, i) => (
-                <li key={i} className="flex items-center gap-3">
-                  <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded border bg-gray-100">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={e.item.image} alt="" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">
-                      {e.who ? <span className="font-medium">{displayName(e.who)} </span> : null}
-                      <span className={e.type === "sold" ? "font-semibold text-green-700" : "font-semibold text-indigo-700"}>
-                        {e.type === "sold" ? "sold" : "added"}
-                      </span>{" "}
-                      <span className="font-mono text-xs">{e.item.code || "—"}</span>
-                      {e.item.category ? <span className="text-gray-500"> · {e.item.category}</span> : null}
-                      {isAdmin && e.type === "sold" && e.item.price != null ? <span className="text-gray-500"> · {inr(Number(e.item.price))}</span> : null}
-                    </p>
-                    <p className="text-[11px] text-gray-400">{formatDistanceToNow(new Date(e.at), { addSuffix: true })}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+                {filteredActivity.rows.map((e, i) => (
+                  <li key={i} className="flex items-center gap-3">
+                    <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded border bg-gray-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={e.item.image} alt="" className="h-full w-full object-cover" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">
+                        {e.who ? <span className="font-medium">{displayName(e.who)} </span> : null}
+                        <span className={e.type === "sold" ? "font-semibold text-green-700" : "font-semibold text-indigo-700"}>
+                          {e.type === "sold" ? "sold" : "added"}
+                        </span>{" "}
+                        <span className="font-mono text-xs">{e.item.code || "—"}</span>
+                        {e.item.category ? <span className="text-gray-500"> · {e.item.category}</span> : null}
+                        {isAdmin && e.type === "sold" && e.item.price != null ? <span className="text-gray-500"> · {inr(Number(e.item.price))}</span> : null}
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        {format(new Date(e.at), "d MMM yyyy, h:mm a")} · {formatDistanceToNow(new Date(e.at), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {filteredActivity.total > filteredActivity.rows.length && (
+                <p className="mt-2 text-center text-xs text-gray-400">
+                  Showing the latest {filteredActivity.rows.length} of {filteredActivity.total}. Search a code to find older ones.
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

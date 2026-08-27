@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
-import { getMaxCodeNumber } from "@/lib/supabase/stock-items";
+import { format } from "date-fns";
+import { getMaxCodeNumber, getRecentCodesByPrefix } from "@/lib/supabase/stock-items";
+import { StockItem } from "@/types/stock-item";
 
 interface LabelData {
   code: string;
@@ -20,6 +22,7 @@ export default function LabelsPage() {
   const [perRow, setPerRow] = useState(4);
   const [labels, setLabels] = useState<LabelData[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [history, setHistory] = useState<StockItem[]>([]);
 
   const pad = (n: number) => String(n).padStart(6, "0");
   const lsKey = (p: string) => `qr_next_start_${p.trim().toUpperCase()}`;
@@ -47,6 +50,12 @@ export default function LabelsPage() {
       }
       const next = Math.max(dbMax + 1, ls, 1);
       if (!cancelled) setStartNumber(next);
+      try {
+        const rows = await getRecentCodesByPrefix(p);
+        if (!cancelled) setHistory(rows);
+      } catch {
+        if (!cancelled) setHistory([]);
+      }
     })();
     return () => {
       cancelled = true;
@@ -217,6 +226,48 @@ export default function LabelsPage() {
           </div>
         </div>
       )}
+
+      {/* QR history for this prefix */}
+      <div className="rounded-lg border bg-white p-6 shadow-sm print:hidden">
+        <h2 className="text-lg font-semibold">QR history — {prefix.trim().toUpperCase() || "—"}</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Codes already registered for this prefix (newest first). Don&apos;t reuse these numbers.
+        </p>
+        {history.length === 0 ? (
+          <p className="text-sm text-gray-400">No codes used yet for this prefix.</p>
+        ) : (
+          <div className="max-h-96 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-white text-left text-xs text-gray-400">
+                <tr>
+                  <th className="py-1 font-medium">Code</th>
+                  <th className="font-medium">Folder</th>
+                  <th className="font-medium">Status</th>
+                  <th className="font-medium">Registered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.code} className="border-t">
+                    <td className="py-1.5 font-mono text-xs font-semibold">{h.code}</td>
+                    <td className="text-gray-600">{h.category || "—"}</td>
+                    <td>
+                      {h.status === "sold" ? (
+                        <span className="text-red-600">Sold</span>
+                      ) : (
+                        <span className="text-green-600">In stock</span>
+                      )}
+                    </td>
+                    <td className="text-gray-500">
+                      {h.created_at ? format(new Date(h.created_at), "d MMM, h:mm a") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -17,6 +17,21 @@ export async function getMaxCodeNumber(prefix: string): Promise<number> {
   return Number.isNaN(num) ? 0 : num;
 }
 
+// Recently registered codes for a prefix — powers the "QR history" list so you
+// can see which codes are already used before printing more.
+export async function getRecentCodesByPrefix(prefix: string, limit = 60): Promise<StockItem[]> {
+  const p = prefix.trim().toUpperCase();
+  if (!isSupabaseClient(supabase) || !p) return [];
+  const { data, error } = await supabase
+    .from("stock_items")
+    .select("code,category,status,created_at,created_by")
+    .ilike("code", `${p}-%`)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return (data as unknown as StockItem[]) || [];
+}
+
 // Change a saree's QR code (for fixing a wrong/accidental scan). Throws a clear
 // message if the new code is already used by another saree.
 export async function updateItemCode(id: string, newCode: string): Promise<void> {
