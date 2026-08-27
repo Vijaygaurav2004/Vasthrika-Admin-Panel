@@ -35,6 +35,12 @@ export async function updateItemCode(id: string, newCode: string): Promise<void>
 // Supabase/PostgREST returns at most 1000 rows per request. Once the shop has
 // more than 1000 sarees, a single query silently drops the rest — so we page
 // through in blocks of 1000 and return everything.
+//
+// We skip the heavy `ai_description` column here: none of the list/folder
+// screens use it, and it roughly triples the payload at scale.
+const LIST_COLUMNS =
+  "id,code,image,label,category,color,pattern,fabric,price,notes,status,sold_at,buyer_name,buyer_phone,created_by,sold_by,created_at,updated_at";
+
 export async function getStockItems(statusFilter?: string) {
   if (!isSupabaseClient(supabase)) return [];
 
@@ -44,7 +50,7 @@ export async function getStockItems(statusFilter?: string) {
   for (let from = 0; ; from += pageSize) {
     let query = supabase
       .from("stock_items")
-      .select("*")
+      .select(LIST_COLUMNS)
       .order("created_at", { ascending: false })
       .range(from, from + pageSize - 1);
 
@@ -55,10 +61,31 @@ export async function getStockItems(statusFilter?: string) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const batch = (data as StockItem[]) || [];
+    const batch = (data as unknown as StockItem[]) || [];
     all.push(...batch);
     if (batch.length < pageSize) break;
   }
 
+  return all;
+}
+
+// Load just one folder's sarees, on demand. Keeps big folders fast regardless
+// of how many total sarees exist.
+export async function getStockItemsByCategory(category: string): Promise<StockItem[]> {
+  if (!isSupabaseClient(supabase) || !category) return [];
+  const pageSize = 1000;
+  const all: StockItem[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("stock_items")
+      .select(LIST_COLUMNS)
+      .eq("category", category)
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = (data as unknown as StockItem[]) || [];
+    all.push(...batch);
+    if (batch.length < pageSize) break;
+  }
   return all;
 }

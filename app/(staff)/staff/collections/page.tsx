@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
-import { getStockItems } from "@/lib/supabase/stock-items";
+import { getStockItems, getStockItemsByCategory } from "@/lib/supabase/stock-items";
 import { useWhatsappShare } from "@/lib/use-share";
 import { useIsAdmin } from "@/lib/use-role";
 import {
@@ -56,6 +56,10 @@ export default function CollectionsPage() {
   // Filters inside an open folder
   const [folderStatus, setFolderStatus] = useState<"all" | "in_stock" | "sold">("all");
   const [folderSearch, setFolderSearch] = useState("");
+
+  // The open folder's sarees, loaded on demand (fast even for huge folders).
+  const [folderItems, setFolderItems] = useState<StockItem[]>([]);
+  const [folderLoading, setFolderLoading] = useState(false);
 
   const resetFolderView = () => {
     setOpenFolder(null);
@@ -144,6 +148,7 @@ export default function CollectionsPage() {
       setMoveMode(false);
       setMoveTarget("");
       await load();
+      if (openFolder) await reloadFolder(openFolder);
     } catch (err) {
       toast({
         title: "Error",
@@ -174,6 +179,7 @@ export default function CollectionsPage() {
       setSelected(new Set());
       setMoveMode(false);
       await load();
+      if (openFolder) await reloadFolder(openFolder);
     } catch {
       toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
     } finally {
@@ -211,6 +217,23 @@ export default function CollectionsPage() {
     load();
   }, [load]);
 
+  // Load the open folder's sarees on demand.
+  const reloadFolder = useCallback(async (name: string) => {
+    setFolderLoading(true);
+    try {
+      setFolderItems(await getStockItemsByCategory(name));
+    } catch {
+      setFolderItems([]);
+    } finally {
+      setFolderLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (openFolder) reloadFolder(openFolder);
+    else setFolderItems([]);
+  }, [openFolder, reloadFolder]);
+
   // Collections is owner-only; staff are sent back to the dashboard.
   const router = useRouter();
   useEffect(() => {
@@ -238,7 +261,6 @@ export default function CollectionsPage() {
     return folders.filter((f) => f.name.toLowerCase().includes(q));
   }, [folders, search]);
 
-  const current = openFolder ? folders.find((f) => f.name === openFolder) : null;
 
   // ---- Actions ----
   const handleCreate = async () => {
@@ -309,9 +331,9 @@ export default function CollectionsPage() {
   if (!isAdmin) return null;
 
   // ---- Drill-down: one folder's sarees ----
-  if (current) {
+  if (openFolder) {
     const q = folderSearch.trim().toLowerCase();
-    const folderFiltered = current.items.filter((i) => {
+    const folderFiltered = folderItems.filter((i) => {
       if (folderStatus !== "all" && i.status !== folderStatus) return false;
       if (!q) return true;
       return [i.code, i.label, i.color, i.pattern, i.fabric]
@@ -324,9 +346,9 @@ export default function CollectionsPage() {
           <Button variant="outline" size="sm" onClick={closeFolder}>
             ← All folders
           </Button>
-          <h1 className="text-xl font-bold">{current.name}</h1>
+          <h1 className="text-xl font-bold">{openFolder}</h1>
           <span className="text-sm text-gray-500">({folderFiltered.length})</span>
-          {current.items.length > 0 && (
+          {folderItems.length > 0 && (
             <div className="ml-auto flex gap-2">
               <Button
                 variant={shareMode ? "default" : "outline"}
@@ -346,7 +368,7 @@ export default function CollectionsPage() {
           )}
         </div>
 
-        {current.items.length > 0 && (
+        {folderItems.length > 0 && (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
               {(["in_stock", "sold", "all"] as const).map((f) => (
@@ -370,12 +392,12 @@ export default function CollectionsPage() {
         )}
 
         {shareMode && (() => {
-          const chosen = current.items.filter((i) => i.id && selected.has(i.id));
+          const chosen = folderItems.filter((i) => i.id && selected.has(i.id));
           const ready = isReady(chosen);
           return (
             <div className="flex items-center gap-3 rounded-md bg-green-50 p-3">
               <span className="text-sm text-green-800">{selected.size} selected</span>
-              <Button size="sm" onClick={() => shareSelected(current.items)} disabled={sharing || selected.size === 0 || !ready}>
+              <Button size="sm" onClick={() => shareSelected(folderItems)} disabled={sharing || selected.size === 0 || !ready}>
                 {sharing ? "Opening…" : selected.size > 0 && !ready ? "Preparing photos…" : "Share selected"}
               </Button>
             </div>
@@ -392,19 +414,19 @@ export default function CollectionsPage() {
             >
               <option value="">Move to folder…</option>
               {collections
-                .filter((c) => c.name !== current.name)
+                .filter((c) => c.name !== openFolder)
                 .map((c) => (
                   <option key={c.id} value={c.name}>{c.name}</option>
                 ))}
             </select>
-            <Button size="sm" onClick={() => handleMove(current.items)} disabled={moving || selected.size === 0 || !moveTarget}>
+            <Button size="sm" onClick={() => handleMove(folderItems)} disabled={moving || selected.size === 0 || !moveTarget}>
               {moving ? "Moving…" : "Move here"}
             </Button>
             <span className="mx-1 h-5 w-px bg-gray-300" />
             <Button
               size="sm"
               className="bg-red-600 text-white hover:bg-red-700"
-              onClick={() => handleDeleteSelected(current.items)}
+              onClick={() => handleDeleteSelected(folderItems)}
               disabled={deletingSel || selected.size === 0}
             >
               {deletingSel ? "Deleting…" : "Delete selected"}
@@ -412,7 +434,9 @@ export default function CollectionsPage() {
           </div>
         )}
 
-        {current.items.length === 0 ? (
+        {folderLoading ? (
+          <p className="rounded-lg border bg-white p-8 text-center text-gray-400 shadow-sm">Loading sarees…</p>
+        ) : folderItems.length === 0 ? (
           <p className="rounded-lg border bg-white p-8 text-center text-gray-500 shadow-sm">
             This folder is empty. Add sarees to it from the Inventory screen.
           </p>
