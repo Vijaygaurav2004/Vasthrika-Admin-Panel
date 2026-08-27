@@ -36,6 +36,7 @@ export default function InventoryPage() {
 
   const [deleting, setDeleting] = useState<string | null>(null);
   const [folderNames, setFolderNames] = useState<string[]>([]);
+  const [codeInUse, setCodeInUse] = useState(false);
 
   // WhatsApp share
   const [shareMode, setShareMode] = useState(false);
@@ -73,6 +74,28 @@ export default function InventoryPage() {
       .then((cols) => setFolderNames(cols.map((c) => c.name)))
       .catch(() => setFolderNames([]));
   }, []);
+
+  // Warn immediately if a scanned/typed code is already used by another saree.
+  useEffect(() => {
+    const c = code.trim();
+    if (!c) {
+      setCodeInUse(false);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/sell?code=${encodeURIComponent(c)}`);
+        if (!cancelled) setCodeInUse(res.ok); // 200 = already exists, 404 = free
+      } catch {
+        if (!cancelled) setCodeInUse(false);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [code]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setSelectedFiles((prev) => [...prev, ...acceptedFiles]);
@@ -331,11 +354,16 @@ export default function InventoryPage() {
           <div>
             <Label htmlFor="code">QR Code</Label>
             <div className="mt-1 flex gap-2">
-              <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="VS-000001" />
+              <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="VS-000001" className={codeInUse ? "border-red-500" : ""} />
               <Button type="button" variant="outline" onClick={() => setScanning(true)}>
                 Scan
               </Button>
             </div>
+            {codeInUse && (
+              <p className="mt-1 text-xs font-semibold text-red-600">
+                ⚠ This code is already used by another saree (maybe a sold one). Use a different code.
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="category">Collection / Folder</Label>
@@ -403,8 +431,8 @@ export default function InventoryPage() {
               ))}
             </div>
             <div className="mt-4 flex justify-end">
-              <Button onClick={handleUpload} disabled={uploading} size="lg">
-                {uploading ? "Uploading & Analyzing…" : `Add ${selectedFiles.length} Saree(s) to Stock`}
+              <Button onClick={handleUpload} disabled={uploading || codeInUse} size="lg">
+                {uploading ? "Uploading & Analyzing…" : codeInUse ? "Code already used — change it" : `Add ${selectedFiles.length} Saree(s) to Stock`}
               </Button>
             </div>
           </div>
