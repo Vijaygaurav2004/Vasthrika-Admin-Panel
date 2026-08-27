@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { StockItem } from "@/types/stock-item";
-import { getStockItems } from "@/lib/supabase/stock-items";
+import { getStockItems, updateItemCode } from "@/lib/supabase/stock-items";
 import { getCollections, moveItemsToCollection } from "@/lib/supabase/collections";
 import { useWhatsappShare } from "@/lib/use-share";
 import { useActor, useIsAdmin } from "@/lib/use-role";
@@ -151,6 +151,21 @@ export default function InventoryPage() {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleEditCode = async (item: StockItem) => {
+    if (!item.id) return;
+    const next = window.prompt("Edit the QR code for this saree:", item.code || "");
+    if (next == null) return;
+    const code = next.trim();
+    if (!code || code === (item.code || "")) return;
+    try {
+      await updateItemCode(item.id, code);
+      toast({ title: "Code updated", description: `${item.code || "—"} → ${code}` });
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, code } : i)));
+    } catch (err) {
+      toast({ title: "Couldn't update code", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
     }
   };
 
@@ -536,17 +551,29 @@ export default function InventoryPage() {
                     {isAdmin && item.price != null && <p className="text-[11px] font-medium">₹{item.price}</p>}
                   </div>
                   {!shareMode && !selectMode && (
-                    <button
-                      type="button"
-                      aria-label="Delete saree"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
-                      disabled={deleting === item.id}
-                      className="absolute right-1 top-1 rounded-full bg-red-500 p-1.5 text-white shadow-md disabled:opacity-50"
-                    >
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Edit QR code"
+                        onClick={(e) => { e.stopPropagation(); handleEditCode(item); }}
+                        className="absolute left-1 top-1 rounded-full bg-white/90 p-1.5 text-gray-700 shadow-md hover:bg-white"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Delete saree"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
+                        disabled={deleting === item.id}
+                        className="absolute right-1 top-1 rounded-full bg-red-500 p-1.5 text-white shadow-md disabled:opacity-50"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </>
                   )}
                 </div>
               );

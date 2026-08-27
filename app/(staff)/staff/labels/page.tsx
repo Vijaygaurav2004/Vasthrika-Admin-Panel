@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
+import { getMaxCodeNumber } from "@/lib/supabase/stock-items";
 
 interface LabelData {
   code: string;
@@ -20,33 +21,50 @@ export default function LabelsPage() {
   const [labels, setLabels] = useState<LabelData[]>([]);
   const [generating, setGenerating] = useState(false);
 
-  const STORAGE_KEY = "vasthrika_qr_next_start";
   const pad = (n: number) => String(n).padStart(6, "0");
+  const lsKey = (p: string) => `qr_next_start_${p.trim().toUpperCase()}`;
 
-  // Remember the last number across app restarts / devices refreshes.
+  // When the prefix changes (and on first load), continue from the highest
+  // code already used for that prefix in the database — plus anything printed
+  // ahead on this device (localStorage) — so it never restarts at 1.
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const n = parseInt(saved, 10);
-        if (!Number.isNaN(n) && n > 0) setStartNumber(n);
+    let cancelled = false;
+    (async () => {
+      const p = prefix.trim().toUpperCase();
+      if (!p) return;
+      let ls = 0;
+      try {
+        const v = window.localStorage.getItem(lsKey(p));
+        if (v) ls = parseInt(v, 10) || 0;
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
-    }
-  }, []);
+      let dbMax = 0;
+      try {
+        dbMax = await getMaxCodeNumber(p);
+      } catch {
+        /* ignore */
+      }
+      const next = Math.max(dbMax + 1, ls, 1);
+      if (!cancelled) setStartNumber(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [prefix]);
 
-  // After printing, set the Start number to the LAST printed number and save it,
-  // so the next batch continues from there even after closing the app.
+  // After printing, continue at the next unused number and remember it on this
+  // device (so codes never repeat, even before the labels are scanned in).
   const printSheet = () => {
     window.print();
     if (labels.length === 0) return;
     const lastCode = labels[labels.length - 1].code;
     const lastNum = parseInt(lastCode.split("-").pop() || "", 10);
     if (!Number.isNaN(lastNum)) {
-      setStartNumber(lastNum);
+      const nextStart = lastNum + 1;
+      setStartNumber(nextStart);
       try {
-        window.localStorage.setItem(STORAGE_KEY, String(lastNum));
+        window.localStorage.setItem(lsKey(prefix), String(nextStart));
       } catch {
         /* ignore */
       }

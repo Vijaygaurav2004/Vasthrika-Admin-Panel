@@ -1,6 +1,37 @@
 import { supabase, isSupabaseClient } from "./client";
 import { StockItem } from "@/types/stock-item";
 
+// Highest number already used for a given code prefix (e.g. "BYR02" -> 62),
+// so QR label printing can continue from there instead of restarting at 1.
+export async function getMaxCodeNumber(prefix: string): Promise<number> {
+  const p = prefix.trim().toUpperCase();
+  if (!isSupabaseClient(supabase) || !p) return 0;
+  const { data, error } = await supabase
+    .from("stock_items")
+    .select("code")
+    .ilike("code", `${p}-%`)
+    .order("code", { ascending: false })
+    .limit(1);
+  if (error || !data || data.length === 0) return 0;
+  const num = parseInt((data[0].code as string).split("-").pop() || "", 10);
+  return Number.isNaN(num) ? 0 : num;
+}
+
+// Change a saree's QR code (for fixing a wrong/accidental scan). Throws a clear
+// message if the new code is already used by another saree.
+export async function updateItemCode(id: string, newCode: string): Promise<void> {
+  if (!isSupabaseClient(supabase)) throw new Error("Database unavailable");
+  const code = newCode.trim();
+  const { error } = await supabase
+    .from("stock_items")
+    .update({ code: code || null, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    if (error.code === "23505") throw new Error(`Code "${code}" is already used by another saree.`);
+    throw new Error(error.message || "Failed to update code");
+  }
+}
+
 // Supabase/PostgREST returns at most 1000 rows per request. Once the shop has
 // more than 1000 sarees, a single query silently drops the rest — so we page
 // through in blocks of 1000 and return everything.
