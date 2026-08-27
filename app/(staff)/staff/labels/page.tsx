@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
-import { getMaxCodeNumber, getRecentCodesByPrefix } from "@/lib/supabase/stock-items";
-import { StockItem } from "@/types/stock-item";
+import { getMaxCodeNumber } from "@/lib/supabase/stock-items";
+import { logQrPrint, getQrPrintHistory, QrPrintBatch } from "@/lib/supabase/print-log";
+import { useActor } from "@/lib/use-role";
 
 interface LabelData {
   code: string;
@@ -16,13 +17,14 @@ interface LabelData {
 }
 
 export default function LabelsPage() {
+  const actor = useActor();
   const [prefix, setPrefix] = useState("VS");
   const [startNumber, setStartNumber] = useState(1);
   const [quantity, setQuantity] = useState(24);
   const [perRow, setPerRow] = useState(4);
   const [labels, setLabels] = useState<LabelData[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [history, setHistory] = useState<StockItem[]>([]);
+  const [printHistory, setPrintHistory] = useState<QrPrintBatch[]>([]);
 
   const pad = (n: number) => String(n).padStart(6, "0");
   const lsKey = (p: string) => `qr_next_start_${p.trim().toUpperCase()}`;
@@ -50,25 +52,26 @@ export default function LabelsPage() {
       }
       const next = Math.max(dbMax + 1, ls, 1);
       if (!cancelled) setStartNumber(next);
-      try {
-        const rows = await getRecentCodesByPrefix(p);
-        if (!cancelled) setHistory(rows);
-      } catch {
-        if (!cancelled) setHistory([]);
-      }
     })();
     return () => {
       cancelled = true;
     };
   }, [prefix]);
 
+  const loadPrintHistory = () => {
+    getQrPrintHistory().then(setPrintHistory).catch(() => setPrintHistory([]));
+  };
+  useEffect(() => {
+    loadPrintHistory();
+  }, []);
+
   // After printing, continue at the next unused number and remember it on this
   // device (so codes never repeat, even before the labels are scanned in).
   const printSheet = () => {
     window.print();
     if (labels.length === 0) return;
-    const lastCode = labels[labels.length - 1].code;
-    const lastNum = parseInt(lastCode.split("-").pop() || "", 10);
+    const firstNum = parseInt(labels[0].code.split("-").pop() || "", 10);
+    const lastNum = parseInt(labels[labels.length - 1].code.split("-").pop() || "", 10);
     if (!Number.isNaN(lastNum)) {
       const nextStart = lastNum + 1;
       setStartNumber(nextStart);
@@ -77,6 +80,16 @@ export default function LabelsPage() {
       } catch {
         /* ignore */
       }
+      // Record this print batch in the QR history.
+      logQrPrint({
+        prefix: prefix.trim().toUpperCase(),
+        from_number: firstNum,
+        to_number: lastNum,
+        count: labels.length,
+        printed_by: actor || null,
+      })
+        .then(() => loadPrintHistory())
+        .catch(() => {});
     }
   };
 
@@ -227,42 +240,41 @@ export default function LabelsPage() {
         </div>
       )}
 
-      {/* QR history for this prefix */}
+      {/* QR print history */}
       <div className="rounded-lg border bg-white p-6 shadow-sm print:hidden">
-        <h2 className="text-lg font-semibold">QR history — {prefix.trim().toUpperCase() || "—"}</h2>
+        <h2 className="text-lg font-semibold">QR print history</h2>
         <p className="mb-4 text-sm text-gray-500">
-          Codes already registered for this prefix (newest first). Don&apos;t reuse these numbers.
+          Every sheet you print is recorded here — the number range, how many, and when.
         </p>
-        {history.length === 0 ? (
-          <p className="text-sm text-gray-400">No codes used yet for this prefix.</p>
+        {printHistory.length === 0 ? (
+          <p className="text-sm text-gray-400">No sheets printed yet. Print a sheet and it shows up here.</p>
         ) : (
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white text-left text-xs text-gray-400">
                 <tr>
-                  <th className="py-1 font-medium">Code</th>
-                  <th className="font-medium">Folder</th>
-                  <th className="font-medium">Status</th>
-                  <th className="font-medium">Registered</th>
+                  <th className="py-1 font-medium">Range printed</th>
+                  <th className="font-medium">Qty</th>
+                  <th className="font-medium">By</th>
+                  <th className="font-medium">Printed at</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((h) => (
-                  <tr key={h.code} className="border-t">
-                    <td className="py-1.5 font-mono text-xs font-semibold">{h.code}</td>
-                    <td className="text-gray-600">{h.category || "—"}</td>
-                    <td>
-                      {h.status === "sold" ? (
-                        <span className="text-red-600">Sold</span>
-                      ) : (
-                        <span className="text-green-600">In stock</span>
-                      )}
-                    </td>
-                    <td className="text-gray-500">
-                      {h.created_at ? format(new Date(h.created_at), "d MMM, h:mm a") : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {printHistory.map((b) => {
+                  const p = (b.prefix || "").toUpperCase();
+                  return (
+                    <tr key={b.id} className="border-t">
+                      <td className="whitespace-nowrap py-1.5 font-mono text-xs font-semibold">
+                        {p}-{pad(b.from_number)} → {p}-{pad(b.to_number)}
+                      </td>
+                      <td className="text-gray-600">{b.count}</td>
+                      <td className="text-gray-500">{b.printed_by ? b.printed_by.split("@")[0] : "—"}</td>
+                      <td className="whitespace-nowrap text-gray-500">
+                        {b.printed_at ? format(new Date(b.printed_at), "d MMM yyyy, h:mm a") : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
