@@ -17,6 +17,26 @@ export async function getMaxCodeNumber(prefix: string): Promise<number> {
   return Number.isNaN(num) ? 0 : num;
 }
 
+// For bulk add: the prefix + next number to continue from, based on the codes
+// already in that folder.
+export async function getFolderCodeInfo(category: string): Promise<{ prefix: string; next: number }> {
+  if (!isSupabaseClient(supabase) || !category) return { prefix: "", next: 1 };
+  const { data, error } = await supabase
+    .from("stock_items")
+    .select("code")
+    .eq("category", category)
+    .not("code", "is", null)
+    .order("code", { ascending: false })
+    .limit(1);
+  if (error || !data || data.length === 0) return { prefix: "", next: 1 };
+  const code = data[0].code as string;
+  const idx = code.lastIndexOf("-");
+  if (idx < 0) return { prefix: code, next: 1 };
+  const prefix = code.slice(0, idx);
+  const num = parseInt(code.slice(idx + 1), 10);
+  return { prefix, next: Number.isNaN(num) ? 1 : num + 1 };
+}
+
 // Recently registered codes for a prefix — powers the "QR history" list so you
 // can see which codes are already used before printing more.
 export async function getRecentCodesByPrefix(prefix: string, limit = 60): Promise<StockItem[]> {

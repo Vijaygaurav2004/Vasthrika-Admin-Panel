@@ -10,6 +10,7 @@ import { isAdminEmail } from "@/lib/role";
 const NAV = [
   { href: "/staff/dashboard", label: "Dashboard" },
   { href: "/staff/inventory", label: "Inventory" },
+  { href: "/staff/bulk-add", label: "Bulk Add" },
   { href: "/staff/collections", label: "Collections", adminOnly: true },
   { href: "/staff/sell", label: "Sell (Scan)" },
   { href: "/staff/labels", label: "QR Labels" },
