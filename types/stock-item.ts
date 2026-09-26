@@ -12,6 +12,7 @@ export interface StockItem {
   ai_description?: string;
   status: "in_stock" | "sold";
   sold_at?: string;
+  firm_name?: string;
   buyer_name?: string;
   buyer_phone?: string;
   created_by?: string;

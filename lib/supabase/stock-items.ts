@@ -52,6 +52,31 @@ export async function getRecentCodesByPrefix(prefix: string, limit = 60): Promis
   return (data as unknown as StockItem[]) || [];
 }
 
+// Distinct firm (client) names already billed — powers the firm-name
+// auto-suggest on the Sell screen so staff pick the SAME firm each time
+// instead of retyping it (keeps spelling consistent for the style history).
+// Resilient: returns [] if the firm_name column isn't there yet.
+export async function getFirmNames(): Promise<string[]> {
+  if (!isSupabaseClient(supabase)) return [];
+  const { data, error } = await supabase
+    .from("stock_items")
+    .select("firm_name")
+    .not("firm_name", "is", null)
+    .order("firm_name", { ascending: true })
+    .limit(5000);
+  if (error || !data) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of data as { firm_name?: string }[]) {
+    const name = (r.firm_name || "").trim();
+    if (name && !seen.has(name.toLowerCase())) {
+      seen.add(name.toLowerCase());
+      out.push(name);
+    }
+  }
+  return out;
+}
+
 // Change a saree's QR code (for fixing a wrong/accidental scan). Throws a clear
 // message if the new code is already used by another saree.
 export async function updateItemCode(id: string, newCode: string): Promise<void> {

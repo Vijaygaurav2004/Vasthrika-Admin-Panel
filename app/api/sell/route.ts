@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 // POST /api/sell  { code, buyer_name?, buyer_phone? }  -> mark that saree sold
 export async function POST(request: NextRequest) {
   try {
-    const { code, buyer_name, buyer_phone, actor } = await request.json();
+    const { code, firm_name, buyer_name, buyer_phone, actor } = await request.json();
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "No code provided" }, { status: 400 });
     }
@@ -83,6 +83,14 @@ export async function POST(request: NextRequest) {
     // Best-effort: record who sold it. Ignored if the column isn't there yet.
     if (typeof actor === "string" && actor.trim()) {
       await supabase.from("stock_items").update({ sold_by: actor.trim() }).eq("id", existing.id);
+    }
+
+    // Best-effort: record the client firm this saree was sold to. Kept separate
+    // from the main update so a sale still succeeds before the firm_name column
+    // migration has been run. This firm history is what powers the AI style
+    // recommendations later.
+    if (typeof firm_name === "string" && firm_name.trim()) {
+      await supabase.from("stock_items").update({ firm_name: firm_name.trim() }).eq("id", existing.id);
     }
 
     return NextResponse.json({ success: true, item: updated });

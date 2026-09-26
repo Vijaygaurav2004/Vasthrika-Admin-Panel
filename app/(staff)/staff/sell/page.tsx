@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { QrScanner } from "@/components/admin/qr-scanner";
 import { useActor, useIsAdmin } from "@/lib/use-role";
+import { getFirmNames } from "@/lib/supabase/stock-items";
 import { StockItem } from "@/types/stock-item";
 
 export default function SellPage() {
@@ -17,10 +18,17 @@ export default function SellPage() {
   const [manualCode, setManualCode] = useState("");
   const [current, setCurrent] = useState<StockItem | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
-  const [buyerName, setBuyerName] = useState("");
+  const [firmName, setFirmName] = useState("");
+  const [firmNames, setFirmNames] = useState<string[]>([]);
   const [buyerPhone, setBuyerPhone] = useState("");
   const [working, setWorking] = useState(false);
   const [soldThisSession, setSoldThisSession] = useState<StockItem[]>([]);
+
+  // Firms billed before — for the auto-suggest, so staff pick the same firm
+  // each time (consistent spelling → one clean style history per firm).
+  useEffect(() => {
+    getFirmNames().then(setFirmNames).catch(() => setFirmNames([]));
+  }, []);
 
   const lookup = async (code: string) => {
     setLookupError(null);
@@ -63,7 +71,7 @@ export default function SellPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: current.code,
-          buyer_name: buyerName,
+          firm_name: firmName,
           buyer_phone: buyerPhone,
           actor,
         }),
@@ -72,8 +80,13 @@ export default function SellPage() {
       if (!res.ok) throw new Error(data.error || "Failed");
       toast({ title: "Marked as sold", description: `${current.code} is now sold.` });
       setSoldThisSession((prev) => [data.item, ...prev]);
+      // Remember a newly-typed firm so the next scan can suggest it right away.
+      const typed = firmName.trim();
+      if (typed && !firmNames.some((f) => f.toLowerCase() === typed.toLowerCase())) {
+        setFirmNames((prev) => [...prev, typed].sort((a, b) => a.localeCompare(b)));
+      }
       setCurrent(null);
-      setBuyerName("");
+      // Keep the firm name — a client usually buys several sarees in one visit.
       setBuyerPhone("");
     } catch (err) {
       toast({
@@ -141,11 +154,26 @@ export default function SellPage() {
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="buyerName">Buyer name (optional)</Label>
-              <Input id="buyerName" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
+              <Label htmlFor="firmName">Client firm name</Label>
+              <Input
+                id="firmName"
+                list="firm-names"
+                value={firmName}
+                onChange={(e) => setFirmName(e.target.value)}
+                placeholder="Start typing — pick the firm from the list"
+                autoComplete="off"
+              />
+              <datalist id="firm-names">
+                {firmNames.map((f) => (
+                  <option key={f} value={f} />
+                ))}
+              </datalist>
+              <p className="mt-1 text-[11px] text-gray-400">
+                Pick the same firm from the list each time so its style history stays together.
+              </p>
             </div>
             <div>
-              <Label htmlFor="buyerPhone">Buyer phone (optional)</Label>
+              <Label htmlFor="buyerPhone">Phone (optional)</Label>
               <Input id="buyerPhone" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} />
             </div>
           </div>
@@ -154,7 +182,7 @@ export default function SellPage() {
             <Button className="flex-1" onClick={markSold} disabled={working}>
               {working ? "Saving…" : "✓ Mark as Sold"}
             </Button>
-            <Button variant="outline" onClick={() => { setCurrent(null); setBuyerName(""); setBuyerPhone(""); }}>
+            <Button variant="outline" onClick={() => { setCurrent(null); setBuyerPhone(""); }}>
               Cancel
             </Button>
           </div>
