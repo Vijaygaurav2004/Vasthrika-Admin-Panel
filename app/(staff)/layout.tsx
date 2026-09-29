@@ -13,6 +13,7 @@ const NAV = [
   { href: "/staff/bulk-add", label: "Bulk Add" },
   { href: "/staff/collections", label: "Collections", adminOnly: true },
   { href: "/staff/sell", label: "Sell (Scan)" },
+  { href: "/staff/firms", label: "Firms" },
   { href: "/staff/labels", label: "QR Labels" },
 ];
 

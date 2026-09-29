@@ -77,6 +77,30 @@ export async function getFirmNames(): Promise<string[]> {
   return out;
 }
 
+// All sold sarees that have a firm attached — powers the Firms view (each
+// client firm → the sarees/styles they've bought). Resilient: returns [] if
+// the firm_name column isn't there yet.
+export async function getFirmPurchases(): Promise<StockItem[]> {
+  if (!isSupabaseClient(supabase)) return [];
+  const cols = "id,code,image,category,color,pattern,price,firm_name,sold_at,sold_by";
+  const pageSize = 1000;
+  const all: StockItem[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("stock_items")
+      .select(cols)
+      .eq("status", "sold")
+      .not("firm_name", "is", null)
+      .order("sold_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) return all;
+    const batch = (data as unknown as StockItem[]) || [];
+    all.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return all;
+}
+
 // Change a saree's QR code (for fixing a wrong/accidental scan). Throws a clear
 // message if the new code is already used by another saree.
 export async function updateItemCode(id: string, newCode: string): Promise<void> {
