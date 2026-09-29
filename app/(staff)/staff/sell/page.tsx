@@ -64,6 +64,14 @@ export default function SellPage() {
 
   const markSold = async () => {
     if (!current?.code) return;
+    if (!firmName.trim()) {
+      toast({
+        title: "Enter the client firm first",
+        description: "Pick the firm from the list (or type it) before marking sold.",
+        variant: "destructive",
+      });
+      return;
+    }
     setWorking(true);
     try {
       const res = await fetch("/api/sell", {
@@ -154,7 +162,7 @@ export default function SellPage() {
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="firmName">Client firm name</Label>
+              <Label htmlFor="firmName">Client firm name <span className="text-red-500">*</span></Label>
               <Input
                 id="firmName"
                 list="firm-names"
@@ -162,6 +170,8 @@ export default function SellPage() {
                 onChange={(e) => setFirmName(e.target.value)}
                 placeholder="Start typing — pick the firm from the list"
                 autoComplete="off"
+                required
+                className={!firmName.trim() ? "border-red-300 focus-visible:ring-red-400" : undefined}
               />
               <datalist id="firm-names">
                 {firmNames.map((f) => (
@@ -169,7 +179,7 @@ export default function SellPage() {
                 ))}
               </datalist>
               <p className="mt-1 text-[11px] text-gray-400">
-                Pick the same firm from the list each time so its style history stays together.
+                Required — pick the same firm from the list each time so its style history stays together.
               </p>
             </div>
             <div>
@@ -179,8 +189,8 @@ export default function SellPage() {
           </div>
 
           <div className="mt-5 flex gap-3">
-            <Button className="flex-1" onClick={markSold} disabled={working}>
-              {working ? "Saving…" : "✓ Mark as Sold"}
+            <Button className="flex-1" onClick={markSold} disabled={working || !firmName.trim()}>
+              {working ? "Saving…" : !firmName.trim() ? "Enter firm to sell" : "✓ Mark as Sold"}
             </Button>
             <Button variant="outline" onClick={() => { setCurrent(null); setBuyerPhone(""); }}>
               Cancel
