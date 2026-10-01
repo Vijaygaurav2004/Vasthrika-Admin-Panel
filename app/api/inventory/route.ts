@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
             price: price != null && !Number.isNaN(price) ? price : null,
             ai_description: aiDescription,
             status: "in_stock",
+            created_by: actor,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -132,11 +133,6 @@ export async function POST(request: NextRequest) {
           errors.push(`DB insert failed: ${insertError.message || insertError.code}`);
           console.error("Insert error:", JSON.stringify(insertError, null, 2));
           continue;
-        }
-
-        // Best-effort: record who added it. Ignored if the column isn't there yet.
-        if (actor && item?.id) {
-          await supabase.from("stock_items").update({ created_by: actor }).eq("id", item.id);
         }
 
         results.push(item);
