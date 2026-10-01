@@ -121,6 +121,7 @@ export default function BulkAddPage() {
         fd.append("files", compressed);
         fd.append("code", code);
         fd.append("category", folder.trim());
+        fd.append("ai", "0"); // skip per-item AI so bulk saves stay fast
         if (actor) fd.append("actor", actor);
         const res = await fetch("/api/inventory", { method: "POST", body: fd });
         if (!res.ok) {

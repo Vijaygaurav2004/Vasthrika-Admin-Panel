@@ -16,6 +16,9 @@ export async function POST(request: NextRequest) {
     const priceRaw = (formData.get("price") as string | null)?.trim();
     const price = priceRaw ? Number(priceRaw) : null;
     const actor = (formData.get("actor") as string | null)?.trim() || null;
+    // Callers can skip the (slow) AI description — e.g. Bulk Add, where it would
+    // block every saree in the loop. Tags can be backfilled in one batch later.
+    const wantAi = (formData.get("ai") as string | null)?.trim() !== "0";
 
     if (!files.length) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
@@ -90,12 +93,20 @@ export async function POST(request: NextRequest) {
         }
 
         let aiDescription = null;
-        try {
-          const desc = await describeSareeFromBase64(base64, file.type || "image/jpeg");
-          aiDescription = JSON.stringify(desc);
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          console.error("AI description failed (non-blocking):", errMsg);
+        if (wantAi) {
+          try {
+            // Never let a slow/failing AI call hang the upload — cap it at 12s.
+            const desc = await Promise.race([
+              describeSareeFromBase64(base64, file.type || "image/jpeg"),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("AI description timed out")), 12000)
+              ),
+            ]);
+            aiDescription = JSON.stringify(desc);
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.error("AI description failed (non-blocking):", errMsg);
+          }
         }
 
         const { data: item, error: insertError } = await supabase
