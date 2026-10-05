@@ -8,6 +8,24 @@
       "port": 3000
     },
     {
+      "name": "proof-notes-server-mock",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/gauravk/Desktop/proof-notes/server && MOCK_AI=1 PORT=8790 DATA_DIR=./data-preview CORS_ORIGINS=http://localhost:8081 npx tsx src/index.ts"],
+      "port": 8790
+    },
+    {
+      "name": "proof-notes-app-web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/gauravk/Desktop/proof-notes/app && EXPO_PUBLIC_API_URL=http://localhost:8790 npx expo start --web --port 8081"],
+      "port": 8081
+    },
+    {
+      "name": "proof-notes-docs-static",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "const h=require('http'),f=require('fs'),p=require('path');const d='/Users/gauravk/Desktop/proof-notes/docs';h.createServer((q,r)=>{const n=p.basename(decodeURIComponent(q.url.split('?')[0]))||'';const fp=p.join(d,n);if(!n||!f.existsSync(fp)){r.writeHead(404);return r.end('not found')}r.writeHead(200,{'content-type':n.endsWith('.html')?'text/html; charset=utf-8':'application/octet-stream'});f.createReadStream(fp).pipe(r)}).listen(8796,'127.0.0.1')"],
+      "port": 8796
+    },
+    {
       "name": "dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
