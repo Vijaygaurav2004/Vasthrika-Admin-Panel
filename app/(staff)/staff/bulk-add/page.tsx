@@ -113,6 +113,7 @@ export default function BulkAddPage() {
     setSaving(true);
     setProgress(0);
     setFailed([]);
+    const batchStart = Date.now() - 60_000; // small allowance for clock drift
     const savedPicIds: number[] = []; // pics that ACTUALLY saved
     const failedCodes: string[] = [];
     const errors: string[] = [];
@@ -125,6 +126,20 @@ export default function BulkAddPage() {
         // A duplicate-code (409) is a real conflict, so we don't retry that.
         let lastErr = "failed";
         let done = false;
+        // The server can save a saree even when its reply never reaches the
+        // phone (flaky network). Before calling anything a failure, check
+        // whether this exact code is now in this folder from this batch.
+        const alreadySaved = async () => {
+          try {
+            const r = await fetch(`/api/sell?code=${encodeURIComponent(code)}`, { cache: "no-store" });
+            if (!r.ok) return false;
+            const { item } = await r.json();
+            const created = item?.created_at ? new Date(item.created_at).getTime() : 0;
+            return item?.category === folder.trim() && created >= batchStart;
+          } catch {
+            return false;
+          }
+        };
         for (let attempt = 1; attempt <= 3 && !done; attempt++) {
           try {
             const fd = new FormData();
@@ -140,11 +155,16 @@ export default function BulkAddPage() {
             }
             const d = await res.json().catch(() => ({}));
             lastErr = d.error || `HTTP ${res.status}`;
-            if (res.status === 409) break; // real conflict — don't retry
           } catch (err) {
             lastErr = err instanceof Error ? err.message : "network error";
           }
-          if (!done && attempt < 3) await new Promise((r) => setTimeout(r, 700 * attempt));
+          // Did an earlier attempt actually land? Then it's saved — not a failure.
+          if (await alreadySaved()) {
+            done = true;
+            break;
+          }
+          if (lastErr.includes("already used")) break; // genuine clash with an older saree
+          if (attempt < 3) await new Promise((r) => setTimeout(r, 700 * attempt));
         }
         if (done) savedPicIds.push(sequenced[i].id);
         else {
