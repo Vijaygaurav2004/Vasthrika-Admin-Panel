@@ -333,13 +333,27 @@ export default function CollectionsPage() {
   // ---- Drill-down: one folder's sarees ----
   if (openFolder) {
     const q = folderSearch.trim().toLowerCase();
-    const folderFiltered = folderItems.filter((i) => {
-      if (folderStatus !== "all" && i.status !== folderStatus) return false;
-      if (!q) return true;
-      return [i.code, i.label, i.color, i.pattern, i.fabric]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
+    // Trailing number in a code, e.g. "AMAN01-000500" -> 500. Codeless items sort last.
+    const codeNum = (c?: string) => {
+      const m = (c || "").match(/(\d+)\s*$/);
+      return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+    };
+    const folderFiltered = folderItems
+      .filter((i) => {
+        if (folderStatus !== "all" && i.status !== folderStatus) return false;
+        if (!q) return true;
+        return [i.code, i.label, i.color, i.pattern, i.fabric]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q));
+      })
+      // Show in code-number order so newly added sarees sit in sequence
+      // (490 after 489, 500/501 after 499) instead of jumping around by time added.
+      .sort((a, b) => {
+        const na = codeNum(a.code);
+        const nb = codeNum(b.code);
+        if (na !== nb) return na - nb;
+        return (a.code || "").localeCompare(b.code || "");
+      });
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
