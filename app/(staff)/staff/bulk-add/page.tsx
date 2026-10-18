@@ -120,18 +120,37 @@ export default function BulkAddPage() {
       const code = codeForPos(i);
       try {
         const compressed = await compressImage(sequenced[i].file);
-        const fd = new FormData();
-        fd.append("files", compressed);
-        fd.append("code", code);
-        fd.append("category", folder.trim());
-        fd.append("ai", "0"); // skip per-item AI so bulk saves stay fast
-        if (actor) fd.append("actor", actor);
-        const res = await fetch("/api/inventory", { method: "POST", body: fd });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || "failed");
+        // Upload with up to 3 tries — a single network/server blip (what dropped
+        // sarees before) now self-heals instead of silently losing the photo.
+        // A duplicate-code (409) is a real conflict, so we don't retry that.
+        let lastErr = "failed";
+        let done = false;
+        for (let attempt = 1; attempt <= 3 && !done; attempt++) {
+          try {
+            const fd = new FormData();
+            fd.append("files", compressed);
+            fd.append("code", code);
+            fd.append("category", folder.trim());
+            fd.append("ai", "0"); // skip per-item AI so bulk saves stay fast
+            if (actor) fd.append("actor", actor);
+            const res = await fetch("/api/inventory", { method: "POST", body: fd });
+            if (res.ok) {
+              done = true;
+              break;
+            }
+            const d = await res.json().catch(() => ({}));
+            lastErr = d.error || `HTTP ${res.status}`;
+            if (res.status === 409) break; // real conflict — don't retry
+          } catch (err) {
+            lastErr = err instanceof Error ? err.message : "network error";
+          }
+          if (!done && attempt < 3) await new Promise((r) => setTimeout(r, 700 * attempt));
         }
-        savedPicIds.push(sequenced[i].id);
+        if (done) savedPicIds.push(sequenced[i].id);
+        else {
+          failedCodes.push(code);
+          errors.push(`${code}: ${lastErr}`);
+        }
       } catch (e) {
         failedCodes.push(code);
         errors.push(`${code}: ${e instanceof Error ? e.message : "failed"}`);

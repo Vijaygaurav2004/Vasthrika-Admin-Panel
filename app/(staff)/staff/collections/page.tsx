@@ -346,13 +346,17 @@ export default function CollectionsPage() {
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(q));
       })
-      // Show in code-number order so newly added sarees sit in sequence
-      // (490 after 489, 500/501 after 499) instead of jumping around by time added.
+      // Show in code-number order, highest first, so the newest sarees are at
+      // the top and each sits in sequence (511, 510, 509…). Codeless items last.
       .sort((a, b) => {
         const na = codeNum(a.code);
         const nb = codeNum(b.code);
-        if (na !== nb) return na - nb;
-        return (a.code || "").localeCompare(b.code || "");
+        if (na !== nb) {
+          if (na === Number.POSITIVE_INFINITY) return 1;
+          if (nb === Number.POSITIVE_INFINITY) return -1;
+          return nb - na;
+        }
+        return (b.code || "").localeCompare(a.code || "");
       });
     return (
       <div className="space-y-4">
