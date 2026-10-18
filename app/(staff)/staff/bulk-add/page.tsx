@@ -30,6 +30,7 @@ export default function BulkAddPage() {
   const [order, setOrder] = useState<number[]>([]); // pic ids in tap order
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [failed, setFailed] = useState<string[]>([]); // codes that did NOT save
 
   useEffect(() => {
     getCollections()
@@ -111,7 +112,9 @@ export default function BulkAddPage() {
 
     setSaving(true);
     setProgress(0);
-    let ok = 0;
+    setFailed([]);
+    const savedPicIds: number[] = []; // pics that ACTUALLY saved
+    const failedCodes: string[] = [];
     const errors: string[] = [];
     for (let i = 0; i < sequenced.length; i++) {
       const code = codeForPos(i);
@@ -128,19 +131,22 @@ export default function BulkAddPage() {
           const d = await res.json().catch(() => ({}));
           throw new Error(d.error || "failed");
         }
-        ok++;
+        savedPicIds.push(sequenced[i].id);
       } catch (e) {
+        failedCodes.push(code);
         errors.push(`${code}: ${e instanceof Error ? e.message : "failed"}`);
       }
       setProgress(i + 1);
     }
     setSaving(false);
 
-    if (ok > 0) {
-      toast({ title: "Saved", description: `${ok} saree(s) added to "${folder.trim()}".` });
-      const savedIds = new Set(sequenced.slice(0, ok).map((p) => p.id));
-      setPics((prev) => prev.filter((p) => !savedIds.has(p.id)));
-      setOrder((prev) => prev.filter((id) => !savedIds.has(id)));
+    // Remove ONLY the photos that actually saved — keep the failed ones on
+    // screen so nothing silently disappears and they can be retried.
+    const savedSet = new Set(savedPicIds);
+    if (savedPicIds.length > 0) {
+      toast({ title: "Saved", description: `${savedPicIds.length} saree(s) added to "${folder.trim()}".` });
+      setPics((prev) => prev.filter((p) => !savedSet.has(p.id)));
+      setOrder((prev) => prev.filter((id) => !savedSet.has(id)));
       try {
         const max = await getMaxCodeNumber(prefix.trim().toUpperCase());
         setStartNumber(max + 1);
@@ -148,8 +154,13 @@ export default function BulkAddPage() {
         /* ignore */
       }
     }
+    setFailed(failedCodes);
     if (errors.length) {
-      toast({ title: `${errors.length} failed`, description: errors.slice(0, 3).join(" · "), variant: "destructive" });
+      toast({
+        title: `${errors.length} photo(s) did NOT save`,
+        description: `${errors.slice(0, 3).join(" · ")} — still on screen, tap Save again to retry.`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -161,6 +172,15 @@ export default function BulkAddPage() {
           Add many saris at once. Tap them one-by-one in order — each gets a unique code continuing from the folder&apos;s last code.
         </p>
       </div>
+
+      {failed.length > 0 && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-700">
+            {failed.length} photo(s) did NOT save — still shown below. Tap “Save” again to retry.
+          </p>
+          <p className="mt-1 break-words font-mono text-xs text-red-600">{failed.join(", ")}</p>
+        </div>
+      )}
 
       <div className="rounded-lg border bg-white p-6 shadow-sm">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
