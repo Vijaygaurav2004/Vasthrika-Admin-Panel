@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-import { isAdminEmail } from "@/lib/role";
+import { isAdminUser } from "@/lib/role";
 
 const NAV = [
   { href: "/products", label: "Products" },
@@ -30,13 +30,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!mounted) return;
     if (!user) {
       router.push("/login");
-    } else if (!isAdminEmail(user.email)) {
+    } else if (!isAdminUser(user)) {
       // Staff cannot see the website admin — send them to the stock app.
       router.push("/staff/dashboard");
     }
   }, [mounted, user, router]);
 
-  if (!mounted || !user || !isAdminEmail(user.email)) return null;
+  if (!mounted || !user || !isAdminUser(user)) return null;
 
   const handleLogout = async () => {
     await logout();

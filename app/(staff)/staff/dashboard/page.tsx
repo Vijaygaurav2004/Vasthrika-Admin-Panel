@@ -9,8 +9,14 @@ import { StockItem } from "@/types/stock-item";
 import { useIsAdmin } from "@/lib/use-role";
 import { displayName } from "@/lib/role";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ManageStaff } from "@/components/staff/manage-staff";
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
+
+type ActType = "all" | "added" | "sold";
+type ActRange = "today" | "7d" | "30d" | "all";
+const RANGE_LABEL: Record<ActRange, string> = { today: "Today", "7d": "7 days", "30d": "30 days", all: "All time" };
 
 export default function DashboardPage() {
   const isAdmin = useIsAdmin();
@@ -78,18 +84,55 @@ export default function DashboardPage() {
   }, [items]);
 
   const [activitySearch, setActivitySearch] = useState("");
+  const [actType, setActType] = useState<ActType>("all");
+  const [actRange, setActRange] = useState<ActRange>("all");
+  const [actWho, setActWho] = useState("all");
   const RENDER_CAP = 200;
-  const filteredActivity = useMemo(() => {
+
+  // Everyone who has added or sold something — for the person filter.
+  const people = useMemo(
+    () => Array.from(new Set(allEvents.map((e) => e.who).filter(Boolean) as string[])).sort(),
+    [allEvents]
+  );
+
+  // Events matching period + person + search. The added/sold filter is applied
+  // after, so its chips can show how many of each there are.
+  const scopedActivity = useMemo(() => {
+    const day = 86400000;
+    const from =
+      actRange === "today" ? startToday
+      : actRange === "7d" ? startToday - 6 * day
+      : actRange === "30d" ? startToday - 29 * day
+      : 0;
     const q = activitySearch.trim().toLowerCase();
-    const base = q
-      ? allEvents.filter((e) =>
-          [e.item.code, e.item.category, e.item.label]
-            .filter(Boolean)
-            .some((v) => String(v).toLowerCase().includes(q))
-        )
-      : allEvents;
+    return allEvents.filter((e) => {
+      if (e.at < from) return false;
+      if (actWho !== "all" && e.who !== actWho) return false;
+      if (!q) return true;
+      return [e.item.code, e.item.category, e.item.label]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [allEvents, actRange, actWho, activitySearch, startToday]);
+
+  const typeCounts = useMemo(() => {
+    let added = 0, sold = 0;
+    for (const e of scopedActivity) e.type === "added" ? added++ : sold++;
+    return { all: scopedActivity.length, added, sold };
+  }, [scopedActivity]);
+
+  const filteredActivity = useMemo(() => {
+    const base = actType === "all" ? scopedActivity : scopedActivity.filter((e) => e.type === actType);
     return { total: base.length, rows: base.slice(0, RENDER_CAP) };
-  }, [allEvents, activitySearch]);
+  }, [scopedActivity, actType]);
+
+  const filtersOn = actType !== "all" || actRange !== "all" || actWho !== "all" || !!activitySearch.trim();
+  const clearFilters = () => {
+    setActType("all");
+    setActRange("all");
+    setActWho("all");
+    setActivitySearch("");
+  };
 
   const daily = useMemo(() => {
     const now = new Date();
@@ -157,6 +200,9 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Manage staff — owner only (the API re-checks this server-side) */}
+      {isAdmin && <ManageStaff />}
+
       <div className={`grid gap-6 ${isAdmin ? "lg:grid-cols-2" : ""}`}>
         {isAdmin && (
         <div className="rounded-lg border bg-white p-5 shadow-sm">
@@ -183,11 +229,67 @@ export default function DashboardPage() {
 
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Recent activity</h2>
+            <h2 className="text-lg font-semibold">
+              {actType === "added" ? "Recently added sarees" : actType === "sold" ? "Recently sold" : "Recent activity"}
+            </h2>
             <span className="text-xs text-gray-400">
-              {activitySearch ? `${filteredActivity.total} match(es)` : `${allEvents.length} total`}
+              {filtersOn ? `${filteredActivity.total} of ${allEvents.length}` : `${allEvents.length} total`}
+              {filtersOn && (
+                <button className="ml-2 text-primary underline" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              )}
             </span>
           </div>
+
+          {/* What: all / added / sold */}
+          <div className="mb-2 flex flex-wrap gap-2">
+            {([
+              ["all", "All", typeCounts.all],
+              ["added", "Recently added", typeCounts.added],
+              ["sold", "Sold", typeCounts.sold],
+            ] as [ActType, string, number][]).map(([key, label, n]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={actType === key ? "default" : "outline"}
+                onClick={() => setActType(key)}
+              >
+                {label} <span className="ml-1 opacity-70">{n}</span>
+              </Button>
+            ))}
+          </div>
+
+          {/* When + who */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {(Object.keys(RANGE_LABEL) as ActRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setActRange(r)}
+                className={`rounded-full border px-3 py-1 text-xs ${
+                  actRange === r ? "border-primary bg-primary text-white" : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {RANGE_LABEL[r]}
+              </button>
+            ))}
+            {people.length > 0 && (
+              <select
+                value={actWho}
+                onChange={(e) => setActWho(e.target.value)}
+                className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs text-gray-600"
+                aria-label="Filter by person"
+              >
+                <option value="all">Everyone</option>
+                {people.map((p) => (
+                  <option key={p} value={p}>
+                    {displayName(p)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           <Input
             value={activitySearch}
             onChange={(e) => setActivitySearch(e.target.value)}
@@ -196,7 +298,7 @@ export default function DashboardPage() {
           />
           {filteredActivity.rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-400">
-              {activitySearch ? "No activity matches that search." : "No activity yet."}
+              {filtersOn ? "Nothing matches these filters." : "No activity yet."}
             </p>
           ) : (
             <>
@@ -226,7 +328,7 @@ export default function DashboardPage() {
               </ul>
               {filteredActivity.total > filteredActivity.rows.length && (
                 <p className="mt-2 text-center text-xs text-gray-400">
-                  Showing the latest {filteredActivity.rows.length} of {filteredActivity.total}. Search a code to find older ones.
+                  Showing the latest {filteredActivity.rows.length} of {filteredActivity.total}. Narrow the filters or search a code to find older ones.
                 </p>
               )}
             </>

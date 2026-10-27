@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
-import { isAdminEmail } from "@/lib/role";
+import { isAdminUser } from "@/lib/role";
 
 const NAV = [
   { href: "/staff/dashboard", label: "Dashboard" },
@@ -33,7 +33,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
 
   if (!mounted || !user) return null;
 
-  const admin = isAdminEmail(user.email);
+  const admin = isAdminUser(user);
   const handleLogout = async () => {
     await logout();
     router.push("/login");

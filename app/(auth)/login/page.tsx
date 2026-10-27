@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, ACCESS_REMOVED } from "@/context/auth-context";
+import { useAuth, ACCESS_REMOVED, NO_ACCESS } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,12 +26,16 @@ export default function LoginPage() {
       router.push("/staff/dashboard");
     } catch (error) {
       console.error("Login error:", error);
-      const removed = error instanceof Error && error.message === ACCESS_REMOVED;
+      const msg = error instanceof Error ? error.message : "";
+      const removed = msg === ACCESS_REMOVED;
+      const noAccess = msg === NO_ACCESS;
       toast({
-        title: removed ? "Access removed" : "Error",
+        title: removed ? "Access removed" : noAccess ? "No access" : "Error",
         description: removed
-          ? "This login no longer has access. Please contact the owner."
-          : "Invalid email or password",
+          ? "This login has been deactivated. Please contact the owner."
+          : noAccess
+            ? "This login isn't set up for the stock app. Ask the owner to add you as staff."
+            : "Invalid email or password",
         variant: "destructive",
       });
     } finally {
