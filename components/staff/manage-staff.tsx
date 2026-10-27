@@ -77,7 +77,15 @@ export function ManageStaff() {
     }
     setAdding(true);
     try {
-      const { res, data } = await staffApi("POST", { ...form, email });
+      let { res, data } = await staffApi("POST", { ...form, email });
+      if (res.status === 409 && data.code === "exists_not_staff") {
+        const ok = window.confirm(
+          `${email} already has a login that isn't set up as staff (maybe made earlier in Supabase).\n\n` +
+            `Replace it with a new staff login using the password you typed? The old login will stop working.`
+        );
+        if (!ok) return;
+        ({ res, data } = await staffApi("POST", { ...form, email, replace: true }));
+      }
       if (!res.ok) throw new Error(data.error || "Couldn't add staff");
       toast({
         title: "Staff added",
@@ -96,8 +104,8 @@ export function ManageStaff() {
 
   const setActive = async (m: StaffMember, active: boolean) => {
     const msg = active
-      ? `Activate ${m.name}? They'll be able to log in again.`
-      : `Deactivate ${m.name}? They'll be logged out and can't log in. Their past added/sold history is kept.`;
+      ? `Activate ${m.name} (${m.email})? They'll be able to log in again.`
+      : `Deactivate ${m.name} (${m.email})? They'll be logged out and can't log in. Their past added/sold history is kept.`;
     if (!window.confirm(msg)) return;
     setBusyId(m.id);
     try {
@@ -113,7 +121,7 @@ export function ManageStaff() {
   };
 
   const resetPassword = async (m: StaffMember) => {
-    const pw = window.prompt(`New password for ${m.name} (at least 6 characters):`);
+    const pw = window.prompt(`New password for ${m.name} (${m.email}) — at least 6 characters:`);
     if (pw == null) return;
     if (pw.length < 6) {
       toast({ title: "Too short", description: "Password must be at least 6 characters.", variant: "destructive" });

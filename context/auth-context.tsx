@@ -2,7 +2,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Session, User } from "@supabase/supabase-js";
+import { AuthChangeEvent, Session, User, isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
 import { roleOf, Role } from "@/lib/role";
 
@@ -22,10 +22,15 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const RECHECK_MS = 60_000;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const checked = useRef<Set<string>>(new Set());
+  // The login currently accepted on this device, and when each staff login was
+  // last re-checked with the server.
+  const currentId = useRef<string | null>(null);
+  const lastCheck = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     // Only run in browser environment
@@ -34,42 +39,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const kick = () => {
-      setUser(null);
-      // Deferred: calling auth methods inside onAuthStateChange can deadlock.
-      setTimeout(() => {
-        supabase?.auth.signOut().catch(() => {});
+    // Sign a specific login out of THIS device — but only if it's still the one
+    // signed in, so a late answer can never sign out someone who just logged in.
+    // Deferred: calling auth methods inside onAuthStateChange can deadlock.
+    const signOutIfStill = (targetId: string) => {
+      setTimeout(async () => {
+        if (!supabase) return;
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user.id === targetId) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        }
       }, 0);
+    };
+
+    const drop = (targetId: string) => {
+      if (currentId.current === targetId) {
+        currentId.current = null;
+        setUser(null);
+      }
+      signOutIfStill(targetId);
+    };
+
+    // Has the owner deactivated this staff login since the session started?
+    const verifyStillActive = (u: User, token: string) => {
+      const last = lastCheck.current.get(u.id) || 0;
+      if (Date.now() - last < RECHECK_MS) return;
+      lastCheck.current.set(u.id, Date.now());
+      fetch("/api/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
+        .then(async (r) => {
+          if (r.status === 401 && supabase) {
+            // Token not accepted. A blocked login can't refresh either; an
+            // expired-but-fine one just refreshes and carries on.
+            const { error } = await supabase.auth.refreshSession();
+            return error && !isAuthRetryableFetchError(error) ? { active: false } : null;
+          }
+          return r.ok ? r.json() : null;
+        })
+        .then((d) => {
+          if (d && d.active === false) drop(u.id);
+        })
+        .catch(() => {});
     };
 
     // Only the owner and active staff get in. Anyone else (deactivated staff, or
     // an account nobody added) is signed out, so every screen falls back to /login.
-    const accept = (session: Session | null) => {
+    const accept = (session: Session | null, event?: AuthChangeEvent) => {
       const u = session?.user ?? null;
       if (!u) {
+        currentId.current = null;
         setUser(null);
         return;
       }
       const role = roleOf(u);
       if (role !== "owner" && role !== "staff") {
-        kick();
+        drop(u.id);
         return;
       }
+      currentId.current = u.id;
       setUser(u);
 
-      // A staff member may have been deactivated after this session started —
-      // ask the server once per app open, and sign them out if so.
-      if (role === "staff" && session?.access_token && !checked.current.has(u.id)) {
-        checked.current.add(u.id);
-        fetch("/api/me", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: "no-store",
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => {
-            if (d && d.active === false) kick();
-          })
-          .catch(() => {});
+      // Re-check staff with the server when the app opens, on sign-in, and each
+      // time it comes back to the foreground (Supabase fires SIGNED_IN then) or
+      // refreshes the token — at most once a minute.
+      if (
+        role === "staff" &&
+        session?.access_token &&
+        (event === undefined || event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED")
+      ) {
+        verifyStillActive(u, session.access_token);
       }
     };
 
@@ -80,8 +117,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Listen for changes on auth state (logged in, signed out, etc.)
-    const { data: { subscription } } = supabase?.auth.onAuthStateChange((_event, session) => {
-      accept(session);
+    const { data: { subscription } } = supabase?.auth.onAuthStateChange((event, session) => {
+      accept(session, event);
       setLoading(false);
     }) || { data: { subscription: { unsubscribe: () => {} } } };
 
@@ -102,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const role = roleOf(data.user);
     if (role === "owner" || role === "staff") return;
-    await supabase.auth.signOut().catch(() => {});
+    await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     throw new Error(role === "removed" ? ACCESS_REMOVED : NO_ACCESS);
   };
 

@@ -1,7 +1,7 @@
 // app/(staff)/staff/dashboard/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { formatDistanceToNow, format } from "date-fns";
 import { getStockItems } from "@/lib/supabase/stock-items";
@@ -23,15 +23,33 @@ export default function DashboardPage() {
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // "Now" for Today / This month / the 14-day chart. Refreshed (with the data)
+  // when the app comes back to the screen, so an iPad left open overnight
+  // doesn't keep showing yesterday as "Today".
+  const [now, setNow] = useState(() => Date.now());
+  const lastLoad = useRef(0);
+
   useEffect(() => {
-    getStockItems()
-      .then((d) => setItems(d))
-      .catch((e) => console.error(e))
-      .finally(() => setLoading(false));
+    const load = () => {
+      lastLoad.current = Date.now();
+      setNow(Date.now());
+      return getStockItems()
+        .then((d) => setItems(d))
+        .catch((e) => console.error(e))
+        .finally(() => setLoading(false));
+    };
+    load();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const dayChanged = new Date(lastLoad.current).toDateString() !== new Date().toDateString();
+      if (dayChanged || Date.now() - lastLoad.current > 5 * 60_000) load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  const startToday = useMemo(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime(); }, []);
-  const startMonth = useMemo(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1).getTime(); }, []);
+  const startToday = useMemo(() => { const n = new Date(now); return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime(); }, [now]);
+  const startMonth = useMemo(() => { const n = new Date(now); return new Date(n.getFullYear(), n.getMonth(), 1).getTime(); }, [now]);
 
   const stats = useMemo(() => {
     let inStock = 0, sold = 0, soldToday = 0, soldMonth = 0, addedToday = 0, addedMonth = 0, stockValue = 0;
@@ -135,10 +153,10 @@ export default function DashboardPage() {
   };
 
   const daily = useMemo(() => {
-    const now = new Date();
+    const today = new Date(now);
     const days: { label: string; added: number; sold: number }[] = [];
     for (let i = 13; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
       const start = d.getTime();
       const end = start + 86400000;
       let added = 0, sold = 0;
@@ -150,7 +168,7 @@ export default function DashboardPage() {
       days.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, added, sold });
     }
     return days;
-  }, [items]);
+  }, [items, now]);
 
   const maxBar = Math.max(1, ...daily.map((d) => Math.max(d.added, d.sold)));
 
