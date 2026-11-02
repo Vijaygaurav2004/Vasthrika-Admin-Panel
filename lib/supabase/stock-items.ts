@@ -1,5 +1,70 @@
+import { SupabaseClient } from "@supabase/supabase-js";
 import { supabase, isSupabaseClient } from "./client";
 import { StockItem } from "@/types/stock-item";
+import { roleOf } from "@/lib/role";
+
+// Prices are owner-only. Once supabase/LOCK_DOWN_ACCESS.sql has run, logged-in
+// users can't select the `price` column at all — so never select "*" on
+// stock_items (it fails); list the columns. The owner gets prices through
+// withPrices(), which reads them from the owner-only stock_item_prices().
+export const STOCK_ITEM_COLUMNS =
+  "id,code,image,label,category,color,pattern,fabric,notes,ai_description,status,sold_at,firm_name,buyer_name,buyer_phone,created_by,sold_by,created_at,updated_at";
+
+// Prices by saree id (only sarees that have one). Before the lock-down SQL is
+// run the function doesn't exist yet, so fall back to reading the column.
+async function priceMap(db: SupabaseClient, ids?: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const pageSize = 1000;
+  let legacy = false;
+  const page = (from: number) => {
+    const to = from + pageSize - 1;
+    if (legacy) {
+      let q = db.from("stock_items").select("id,price").not("price", "is", null);
+      if (ids) q = q.in("id", ids);
+      return q.order("id").range(from, to);
+    }
+    let q = db.rpc("stock_item_prices");
+    if (ids) q = q.in("id", ids);
+    return q.order("id").range(from, to);
+  };
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await page(from);
+    if (error) {
+      const missing = error.code === "PGRST202" || error.code === "42883";
+      if (missing && !legacy && from === 0) {
+        legacy = true;
+        from -= pageSize;
+        continue;
+      }
+      return map;
+    }
+    const rows = (data || []) as { id: string; price: number | string | null }[];
+    for (const r of rows) if (r.price != null) map.set(r.id, Number(r.price));
+    if (rows.length < pageSize) return map;
+  }
+}
+
+/** Fill in `price` on sarees. Call only for the owner (staff never get prices). */
+export async function withPrices<T extends { id?: string; price?: number }>(
+  db: SupabaseClient,
+  items: T[]
+): Promise<T[]> {
+  if (items.length === 0) return items;
+  // A few sarees: ask for just those. A whole list: one sweep of all prices.
+  const ids = items.length <= 50 ? (items.map((i) => i.id).filter(Boolean) as string[]) : undefined;
+  const prices = await priceMap(db, ids);
+  if (prices.size === 0) return items;
+  return items.map((i) => (i.id && prices.has(i.id) ? { ...i, price: prices.get(i.id) } : i));
+}
+
+// Browser lists: prices are added only when the owner is logged in.
+async function withOwnerPrices<T extends { id?: string; price?: number }>(items: T[]): Promise<T[]> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (roleOf(session?.user) !== "owner") return items;
+  return withPrices(supabase, items);
+}
 
 // Highest number already used for a given code prefix (e.g. "BYR02" -> 62),
 // so QR label printing can continue from there instead of restarting at 1.
@@ -82,7 +147,7 @@ export async function getFirmNames(): Promise<string[]> {
 // the firm_name column isn't there yet.
 export async function getFirmPurchases(): Promise<StockItem[]> {
   if (!isSupabaseClient(supabase)) return [];
-  const cols = "id,code,image,category,color,pattern,price,firm_name,sold_at,sold_by";
+  const cols = "id,code,image,category,color,pattern,firm_name,sold_at,sold_by";
   const pageSize = 1000;
   const all: StockItem[] = [];
   for (let from = 0; ; from += pageSize) {
@@ -93,12 +158,12 @@ export async function getFirmPurchases(): Promise<StockItem[]> {
       .not("firm_name", "is", null)
       .order("sold_at", { ascending: false })
       .range(from, from + pageSize - 1);
-    if (error) return all;
+    if (error) return withOwnerPrices(all);
     const batch = (data as unknown as StockItem[]) || [];
     all.push(...batch);
     if (batch.length < pageSize) break;
   }
-  return all;
+  return withOwnerPrices(all);
 }
 
 // Change a saree's QR code (for fixing a wrong/accidental scan). Throws a clear
@@ -123,7 +188,7 @@ export async function updateItemCode(id: string, newCode: string): Promise<void>
 // We skip the heavy `ai_description` column here: none of the list/folder
 // screens use it, and it roughly triples the payload at scale.
 const LIST_COLUMNS =
-  "id,code,image,label,category,color,pattern,fabric,price,notes,status,sold_at,buyer_name,buyer_phone,created_by,sold_by,created_at,updated_at";
+  "id,code,image,label,category,color,pattern,fabric,notes,status,sold_at,buyer_name,buyer_phone,created_by,sold_by,created_at,updated_at";
 
 export async function getStockItems(statusFilter?: string) {
   if (!isSupabaseClient(supabase)) return [];
@@ -150,7 +215,7 @@ export async function getStockItems(statusFilter?: string) {
     if (batch.length < pageSize) break;
   }
 
-  return all;
+  return withOwnerPrices(all);
 }
 
 // Load just one folder's sarees, on demand. Keeps big folders fast regardless
@@ -171,5 +236,5 @@ export async function getStockItemsByCategory(category: string): Promise<StockIt
     all.push(...batch);
     if (batch.length < pageSize) break;
   }
-  return all;
+  return withOwnerPrices(all);
 }

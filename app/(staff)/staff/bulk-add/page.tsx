@@ -10,6 +10,7 @@ import { getMaxCodeNumber, getFolderCodeInfo } from "@/lib/supabase/stock-items"
 import { getCollections } from "@/lib/supabase/collections";
 import { useActor } from "@/lib/use-role";
 import { compressImage } from "@/lib/image";
+import { apiFetch } from "@/lib/api";
 
 interface Pic {
   id: number;
@@ -131,7 +132,7 @@ export default function BulkAddPage() {
         // whether this exact code is now in this folder from this batch.
         const alreadySaved = async () => {
           try {
-            const r = await fetch(`/api/sell?code=${encodeURIComponent(code)}`, { cache: "no-store" });
+            const r = await apiFetch(`/api/sell?code=${encodeURIComponent(code)}`, { cache: "no-store" });
             if (!r.ok) return false;
             const { item } = await r.json();
             const created = item?.created_at ? new Date(item.created_at).getTime() : 0;
@@ -148,7 +149,7 @@ export default function BulkAddPage() {
             fd.append("category", folder.trim());
             fd.append("ai", "0"); // skip per-item AI so bulk saves stay fast
             if (actor) fd.append("actor", actor);
-            const res = await fetch("/api/inventory", { method: "POST", body: fd });
+            const res = await apiFetch("/api/inventory", { method: "POST", body: fd });
             if (res.ok) {
               done = true;
               break;

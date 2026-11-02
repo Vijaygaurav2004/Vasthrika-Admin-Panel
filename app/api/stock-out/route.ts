@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { matchGroupPhoto } from "@/lib/ai/match-sarees";
-import { supabase } from "@/lib/supabase/client";
+import { requireAppUser } from "@/lib/supabase/require-user";
+import { STOCK_ITEM_COLUMNS } from "@/lib/supabase/stock-items";
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAppUser(request);
+  if ("response" in auth) return auth.response;
+  const supabase = auth.db;
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -21,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     const { data: stockItems, error } = await supabase
       .from("stock_items")
-      .select("*")
+      .select(STOCK_ITEM_COLUMNS)
       .eq("status", "in_stock")
       .order("created_at", { ascending: false });
 
@@ -47,6 +51,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = await requireAppUser(request);
+  if ("response" in auth) return auth.response;
+  const supabase = auth.db;
   try {
     const { itemIds } = await request.json();
 

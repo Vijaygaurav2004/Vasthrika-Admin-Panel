@@ -10,6 +10,7 @@ import { QrScanner } from "@/components/admin/qr-scanner";
 import { useActor, useIsAdmin } from "@/lib/use-role";
 import { getFirmNames } from "@/lib/supabase/stock-items";
 import { StockItem } from "@/types/stock-item";
+import { apiFetch } from "@/lib/api";
 
 export default function SellPage() {
   const actor = useActor();
@@ -34,7 +35,7 @@ export default function SellPage() {
     setLookupError(null);
     setCurrent(null);
     try {
-      const res = await fetch(`/api/sell?code=${encodeURIComponent(code)}`);
+      const res = await apiFetch(`/api/sell?code=${encodeURIComponent(code)}`);
       const data = await res.json();
       if (res.status === 404) {
         setLookupError(`No saree found for code ${code}. Is it registered in Inventory?`);
@@ -74,7 +75,7 @@ export default function SellPage() {
     }
     setWorking(true);
     try {
-      const res = await fetch("/api/sell", {
+      const res = await apiFetch("/api/sell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

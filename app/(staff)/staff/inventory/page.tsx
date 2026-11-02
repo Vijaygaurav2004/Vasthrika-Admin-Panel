@@ -14,6 +14,7 @@ import { useWhatsappShare } from "@/lib/use-share";
 import { useActor, useIsAdmin } from "@/lib/use-role";
 import { compressImage } from "@/lib/image";
 import { QrScanner } from "@/components/admin/qr-scanner";
+import { apiFetch } from "@/lib/api";
 
 export default function InventoryPage() {
   const [items, setItems] = useState<StockItem[]>([]);
@@ -85,7 +86,7 @@ export default function InventoryPage() {
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/sell?code=${encodeURIComponent(c)}`);
+        const res = await apiFetch(`/api/sell?code=${encodeURIComponent(c)}`);
         if (!cancelled) setCodeInUse(res.ok); // 200 = already exists, 404 = free
       } catch {
         if (!cancelled) setCodeInUse(false);
@@ -154,7 +155,7 @@ export default function InventoryPage() {
       if (price.trim()) formData.append("price", price.trim());
       if (actor) formData.append("actor", actor);
 
-      const response = await fetch("/api/inventory", { method: "POST", body: formData });
+      const response = await apiFetch("/api/inventory", { method: "POST", body: formData });
       const data = await response.json();
 
       if (!response.ok) throw new Error(data.error || "Upload failed");
@@ -197,7 +198,7 @@ export default function InventoryPage() {
     if (!confirm(`Delete ${item.code || "this saree"}? This cannot be undone. (To record a sale, use Sell instead.)`)) return;
     setDeleting(item.id);
     try {
-      const response = await fetch("/api/inventory", {
+      const response = await apiFetch("/api/inventory", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: item.id, imageUrl: item.image }),
@@ -223,7 +224,7 @@ export default function InventoryPage() {
     try {
       const results = await Promise.allSettled(
         chosen.map((item) =>
-          fetch("/api/inventory", {
+          apiFetch("/api/inventory", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: item.id, imageUrl: item.image }),

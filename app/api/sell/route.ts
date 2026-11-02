@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase/client";
+import { requireAppUser } from "@/lib/supabase/require-user";
+import { STOCK_ITEM_COLUMNS, withPrices } from "@/lib/supabase/stock-items";
 
 // GET /api/sell?code=VS-000001  -> look up a saree by its QR code
 export async function GET(request: NextRequest) {
+  const auth = await requireAppUser(request);
+  if ("response" in auth) return auth.response;
+  const { role, db: supabase } = auth;
   try {
     const code = request.nextUrl.searchParams.get("code")?.trim();
     if (!code) {
@@ -14,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("stock_items")
-      .select("*")
+      .select(STOCK_ITEM_COLUMNS)
       .eq("code", code)
       .maybeSingle();
 
@@ -25,7 +29,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "not_found", code }, { status: 404 });
     }
 
-    return NextResponse.json({ item: data });
+    const [item] = role === "owner" ? await withPrices(supabase, [data]) : [data];
+    return NextResponse.json({ item });
   } catch (error) {
     console.error("Error in sell lookup:", error);
     return NextResponse.json({ error: "Lookup failed" }, { status: 500 });
@@ -34,8 +39,14 @@ export async function GET(request: NextRequest) {
 
 // POST /api/sell  { code, buyer_name?, buyer_phone? }  -> mark that saree sold
 export async function POST(request: NextRequest) {
+  const auth = await requireAppUser(request);
+  if ("response" in auth) return auth.response;
+  const { user, role, db: supabase } = auth;
   try {
-    const { code, firm_name, buyer_name, buyer_phone, actor } = await request.json();
+    const body = await request.json();
+    const { code, firm_name, buyer_name, buyer_phone } = body;
+    // Who sold it: the verified login, not whatever the request claims.
+    const actor = user.email || body.actor;
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "No code provided" }, { status: 400 });
     }
@@ -45,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const { data: existing, error: findError } = await supabase
       .from("stock_items")
-      .select("*")
+      .select(STOCK_ITEM_COLUMNS)
       .eq("code", code.trim())
       .maybeSingle();
 
@@ -73,7 +84,7 @@ export async function POST(request: NextRequest) {
         buyer_phone: buyer_phone?.trim() || null,
       })
       .eq("id", existing.id)
-      .select()
+      .select(STOCK_ITEM_COLUMNS)
       .single();
 
     if (updateError) {
@@ -93,7 +104,8 @@ export async function POST(request: NextRequest) {
       await supabase.from("stock_items").update({ firm_name: firm_name.trim() }).eq("id", existing.id);
     }
 
-    return NextResponse.json({ success: true, item: updated });
+    const [item] = role === "owner" ? await withPrices(supabase, [updated]) : [updated];
+    return NextResponse.json({ success: true, item });
   } catch (error) {
     console.error("Error marking sold:", error);
     return NextResponse.json({ error: "Failed to mark sold" }, { status: 500 });

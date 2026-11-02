@@ -5,6 +5,7 @@ import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import StockOutMatcher from "@/components/admin/stock-out-matcher";
+import { apiFetch } from "@/lib/api";
 
 interface MatchResult {
   item_id: string;
@@ -48,7 +49,7 @@ export default function StockOutPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch("/api/stock-out", { method: "POST", body: formData });
+      const response = await apiFetch("/api/stock-out", { method: "POST", body: formData });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setResults(data);

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { apiFetch } from "@/lib/api";
 
 interface MatchResult {
   item_id: string;
@@ -71,7 +72,7 @@ export default function StockOutMatcher({
 
     setMarking(true);
     try {
-      const response = await fetch("/api/stock-out", {
+      const response = await apiFetch("/api/stock-out", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemIds: Array.from(selectedIds) }),

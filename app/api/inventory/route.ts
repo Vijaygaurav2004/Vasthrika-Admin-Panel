@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase/client";
+import { requireAppUser } from "@/lib/supabase/require-user";
+import { STOCK_ITEM_COLUMNS } from "@/lib/supabase/stock-items";
 import { describeSareeFromBase64 } from "@/lib/ai/describe-saree";
 import { isR2Configured, isR2Url, uploadToR2, deleteFromR2 } from "@/lib/r2";
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAppUser(request);
+  if ("response" in auth) return auth.response;
+  const { user, role, db: supabase } = auth;
   try {
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
@@ -13,9 +17,12 @@ export async function POST(request: NextRequest) {
     const color = (formData.get("color") as string | null)?.trim() || null;
     const pattern = (formData.get("pattern") as string | null)?.trim() || null;
     const fabric = (formData.get("fabric") as string | null)?.trim() || null;
-    const priceRaw = (formData.get("price") as string | null)?.trim();
-    const price = priceRaw ? Number(priceRaw) : null;
-    const actor = (formData.get("actor") as string | null)?.trim() || null;
+    // Prices are owner-only; a price sent by anyone else is ignored.
+    const priceRaw = role === "owner" ? (formData.get("price") as string | null)?.trim() : null;
+    const priceNum = priceRaw ? Number(priceRaw) : NaN;
+    const price = Number.isNaN(priceNum) ? null : priceNum;
+    // Who added it: the verified login, not whatever the form claims.
+    const actor = user.email || (formData.get("actor") as string | null)?.trim() || null;
     // Callers can skip the (slow) AI description — e.g. Bulk Add, where it would
     // block every saree in the loop. Tags can be backfilled in one batch later.
     const wantAi = (formData.get("ai") as string | null)?.trim() !== "0";
@@ -119,14 +126,15 @@ export async function POST(request: NextRequest) {
             color: color || null,
             pattern: pattern || null,
             fabric: fabric || null,
-            price: price != null && !Number.isNaN(price) ? price : null,
+            // Only mention price when there is one — staff can't touch the column.
+            ...(price != null ? { price } : {}),
             ai_description: aiDescription,
             status: "in_stock",
             created_by: actor,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .select()
+          .select(STOCK_ITEM_COLUMNS)
           .single();
 
         if (insertError) {
@@ -135,7 +143,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        results.push(item);
+        results.push(price != null ? { ...item, price } : item);
       } catch (err) {
         errors.push(`Failed for ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -161,6 +169,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = await requireAppUser(request);
+  if ("response" in auth) return auth.response;
+  const supabase = auth.db;
   try {
     const { id, imageUrl } = await request.json();
     if (!id || !supabase) {

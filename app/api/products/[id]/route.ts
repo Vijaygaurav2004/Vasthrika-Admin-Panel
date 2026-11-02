@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProduct, updateProduct } from "@/lib/supabase/products";
+import { requireAppUser } from "@/lib/supabase/require-user";
+
+// Website products — owner only.
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAppUser(request, ["owner"]);
+  if ("response" in auth) return auth.response;
   try {
     const id = params.id;
     if (!id) {
@@ -29,6 +34,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAppUser(request, ["owner"]);
+  if ("response" in auth) return auth.response;
   try {
     const id = params.id;
     if (!id) {

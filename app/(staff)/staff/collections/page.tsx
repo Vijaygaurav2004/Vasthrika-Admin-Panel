@@ -20,6 +20,7 @@ import {
   swapCollectionOrder,
   moveItemsToCollection,
 } from "@/lib/supabase/collections";
+import { apiFetch } from "@/lib/api";
 
 interface Folder {
   id: string;
@@ -168,7 +169,7 @@ export default function CollectionsPage() {
     try {
       await Promise.allSettled(
         chosen.map((item) =>
-          fetch("/api/inventory", {
+          apiFetch("/api/inventory", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: item.id, imageUrl: item.image }),

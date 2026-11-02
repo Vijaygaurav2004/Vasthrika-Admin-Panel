@@ -2,6 +2,8 @@
 --  VASTHRIKA — ONE-TIME DATABASE SETUP
 --  Paste this whole file into Supabase → SQL Editor → Run.
 --  Safe to run more than once (nothing is duplicated or lost).
+--  Then run LOCK_DOWN_ACCESS.sql — it sets who may read/change these tables
+--  (and must be re-run whenever a column is added to stock_items).
 -- ============================================================
 
 -- 1) QR code + attribute + buyer fields on stock_items ---------
@@ -31,10 +33,9 @@ CREATE TABLE IF NOT EXISTS collections (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Access rules (owner + staff only): LOCK_DOWN_ACCESS.sql
 ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access to collections" ON collections;
-CREATE POLICY "Allow all access to collections" ON collections
-  FOR ALL USING (true) WITH CHECK (true);
 
 -- 3) Seed folders from the iCloud albums -----------------------
 INSERT INTO collections (name, sort_order) VALUES
@@ -69,7 +70,6 @@ CREATE TABLE IF NOT EXISTS qr_print_log (
   printed_by TEXT,
   printed_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Access rules (owner + staff only): LOCK_DOWN_ACCESS.sql
 ALTER TABLE qr_print_log ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access to qr_print_log" ON qr_print_log;
-CREATE POLICY "Allow all access to qr_print_log" ON qr_print_log
-  FOR ALL USING (true) WITH CHECK (true);

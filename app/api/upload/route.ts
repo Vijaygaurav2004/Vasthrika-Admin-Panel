@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { requireAppUser } from '@/lib/supabase/require-user';
 
+// Website product photos — owner only.
 export async function POST(request: NextRequest) {
+  const auth = await requireAppUser(request, ['owner']);
+  if ('response' in auth) return auth.response;
+  const supabase = auth.db;
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
