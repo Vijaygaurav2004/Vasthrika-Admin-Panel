@@ -17,7 +17,7 @@ const NAV = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -27,16 +27,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    // Wait for the saved session — else a refresh bounces to /login.
+    if (!mounted || loading) return;
     if (!user) {
       router.push("/login");
     } else if (!isAdminUser(user)) {
       // Staff cannot see the website admin — send them to the stock app.
       router.push("/staff/dashboard");
     }
-  }, [mounted, user, router]);
+  }, [mounted, loading, user, router]);
 
-  if (!mounted || !user || !isAdminUser(user)) return null;
+  if (!mounted || loading || !user || !isAdminUser(user)) return null;
 
   const handleLogout = async () => {
     await logout();

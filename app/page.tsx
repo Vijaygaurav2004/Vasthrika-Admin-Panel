@@ -5,16 +5,18 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // Wait for the saved session, or a logged-in user always lands on /login.
+    if (loading) return;
     if (user) {
       router.push("/staff/dashboard");
     } else {
       router.push("/login");
     }
-  }, [user, router]);
+  }, [loading, user, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center">

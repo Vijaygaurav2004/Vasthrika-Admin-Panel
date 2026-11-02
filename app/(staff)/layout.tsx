@@ -20,7 +20,7 @@ const NAV = [
 // Desktop/large iPad: fixed sidebar. Phones/small iPad: a top bar with a ☰
 // button that slides the same menu in from the left.
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -30,9 +30,11 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     setMounted(true);
   }, []);
 
+  // Wait until the saved session has been read — otherwise a refresh bounces
+  // a logged-in user to /login before their session loads.
   useEffect(() => {
-    if (mounted && !user) router.push("/login");
-  }, [mounted, user, router]);
+    if (mounted && !loading && !user) router.push("/login");
+  }, [mounted, loading, user, router]);
 
   // Close the mobile menu after navigating.
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     };
   }, [menuOpen]);
 
-  if (!mounted || !user) return null;
+  if (!mounted || loading || !user) return null;
 
   const admin = isAdminUser(user);
   const handleLogout = async () => {
