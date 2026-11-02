@@ -9,13 +9,13 @@ export type PeriodKey =
   | "month" | "custom";
 
 export const PRESETS: [PeriodKey, string][] = [
+  ["all", "All time"],
   ["today", "Today"],
   ["yesterday", "Yesterday"],
-  ["7d", "7 days"],
+  ["7d", "Last 7 days"],
   ["this_month", "This month"],
   ["last_month", "Last month"],
   ["this_year", "This year"],
-  ["all", "All time"],
 ];
 
 export interface Period {
@@ -132,7 +132,7 @@ export function buildBuckets(
     unit = "day";
     const starts: number[] = [];
     for (let t = from; t < to; t = addDays(t, 1)) starts.push(t);
-    const step = Math.ceil(starts.length / 12);
+    const step = Math.ceil(starts.length / 8);
     buckets = starts.map((t, i) => ({
       start: t,
       label: i % step === 0 ? format(new Date(t), "d/M") : "",
@@ -148,7 +148,7 @@ export function buildBuckets(
     const l = new Date(to - 1);
     const first = f.getFullYear() * 12 + f.getMonth();
     const count = l.getFullYear() * 12 + l.getMonth() - first + 1;
-    const step = Math.ceil(count / 12);
+    const step = Math.ceil(count / 8);
     buckets = Array.from({ length: count }, (_, i) => {
       const t = new Date(Math.floor((first + i) / 12), (first + i) % 12, 1);
       return { start: t.getTime(), label: i % step === 0 ? format(t, "MMM yy") : "", title: format(t, "MMMM yyyy"), added: 0, sold: 0 };

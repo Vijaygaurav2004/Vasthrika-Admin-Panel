@@ -56,7 +56,7 @@ export default function DashboardPage() {
   }, []);
 
   // ---- Period selection ----
-  const [periodKey, setPeriodKey] = useState<PeriodKey>("this_month");
+  const [periodKey, setPeriodKey] = useState<PeriodKey>("all");
   const [pickedMonth, setPickedMonth] = useState("");
   const [customFrom, setCustomFrom] = useState(() => toInputDate(monthStart(new Date().getFullYear(), new Date().getMonth())));
   const [customTo, setCustomTo] = useState(() => toInputDate(Date.now()));
@@ -241,59 +241,77 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
-      {/* Period — drives every section below */}
-      <div className="sticky top-0 z-10 -mx-1 rounded-lg border bg-white/95 p-3 shadow-sm backdrop-blur">
+      {/* Period — one dropdown drives every section below. Sticks under the
+          phone's top bar (h-14) / at the top on desktop. */}
+      <div className="sticky top-14 z-20 rounded-lg border bg-white/95 p-3 shadow-sm backdrop-blur lg:top-0">
         <div className="flex flex-wrap items-center gap-2">
-          {PRESETS.map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setPeriodKey(key)}
-              className={`rounded-full border px-3 py-1 text-sm ${
-                periodKey === key ? "border-primary bg-primary text-white" : "border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          <label htmlFor="period" className="text-sm font-medium text-gray-600">
+            Period
+          </label>
           <select
-            value={periodKey === "month" ? pickedMonth : ""}
+            id="period"
+            value={periodKey === "month" ? `month:${pickedMonth}` : periodKey}
             onChange={(e) => {
-              if (!e.target.value) return;
-              setPickedMonth(e.target.value);
-              setPeriodKey("month");
+              const v = e.target.value;
+              if (v.startsWith("month:")) {
+                setPickedMonth(v.slice(6));
+                setPeriodKey("month");
+              } else {
+                setPeriodKey(v as PeriodKey);
+              }
             }}
-            className={`rounded-full border px-3 py-1 text-sm ${
-              periodKey === "month" ? "border-primary bg-primary text-white" : "border-gray-300 bg-white text-gray-700"
-            }`}
-            aria-label="Pick a month"
+            className="h-10 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-base sm:max-w-xs sm:flex-none md:text-sm"
           >
-            <option value="">Pick a month…</option>
-            {months.map((mo) => (
-              <option key={mo.value} value={mo.value}>
-                {mo.label}
-              </option>
-            ))}
+            <optgroup label="Quick">
+              {PRESETS.map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </optgroup>
+            {months.length > 0 && (
+              <optgroup label="Month">
+                {months.map((mo) => (
+                  <option key={mo.value} value={`month:${mo.value}`}>
+                    {mo.label}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Other">
+              <option value="custom">Custom dates…</option>
+            </optgroup>
           </select>
-          <button
-            onClick={() => setPeriodKey("custom")}
-            className={`rounded-full border px-3 py-1 text-sm ${
-              periodKey === "custom" ? "border-primary bg-primary text-white" : "border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Custom dates
-          </button>
+          <p className="w-full text-xs text-gray-500 sm:w-auto">
+            <b className="text-gray-700">{period.label}</b> · {period.range}
+          </p>
         </div>
         {periodKey === "custom" && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-            <label className="text-gray-500" htmlFor="from">From</label>
-            <input id="from" type="date" value={customFrom} max={toInputDate(now)} onChange={(e) => e.target.value && setCustomFrom(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1" />
-            <label className="text-gray-500" htmlFor="to">to</label>
-            <input id="to" type="date" value={customTo} max={toInputDate(now)} onChange={(e) => e.target.value && setCustomTo(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1" />
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:items-end">
+            <div>
+              <label className="block text-xs text-gray-500" htmlFor="from">From</label>
+              <input
+                id="from"
+                type="date"
+                value={customFrom}
+                max={toInputDate(now)}
+                onChange={(e) => e.target.value && setCustomFrom(e.target.value)}
+                className="h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-base md:text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500" htmlFor="to">To</label>
+              <input
+                id="to"
+                type="date"
+                value={customTo}
+                max={toInputDate(now)}
+                onChange={(e) => e.target.value && setCustomTo(e.target.value)}
+                className="h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-base md:text-sm"
+              />
+            </div>
           </div>
         )}
-        <p className="mt-2 text-xs text-gray-500">
-          Showing <b className="text-gray-700">{period.label}</b> · {period.range}
-        </p>
       </div>
 
       {isAdmin && (
@@ -309,7 +327,7 @@ export default function DashboardPage() {
 
       {/* Staff activity in the period — owner only */}
       {isAdmin && (
-        <div className="rounded-lg border bg-white p-5 shadow-sm">
+        <div className="rounded-lg border bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold">Staff activity · {period.label}</h2>
             {staffActivity.list.length > 0 && <span className="text-xs text-gray-400">Tap a person to see their activity below</span>}
@@ -324,7 +342,7 @@ export default function DashboardPage() {
                   <button
                     key={s.email}
                     onClick={() => setActWho(selected ? "all" : s.email)}
-                    className={`flex items-center justify-between rounded-md border px-4 py-3 text-left transition ${
+                    className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md border px-4 py-3 text-left transition ${
                       selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "bg-gray-50 hover:bg-gray-100"
                     }`}
                   >
@@ -332,7 +350,7 @@ export default function DashboardPage() {
                       <p className="font-medium">{displayName(s.email)}</p>
                       <p className="truncate text-[11px] text-gray-400">{s.email}</p>
                     </div>
-                    <div className="text-right text-sm">
+                    <div className="text-sm sm:text-right">
                       <span className="text-indigo-600"><b>{s.added}</b> added</span>
                       <span className="ml-3 text-green-600"><b>{s.sold}</b> sold</span>
                       {s.value > 0 && <p className="text-[11px] text-gray-500">{inr(s.value)} sold</p>}
@@ -353,9 +371,9 @@ export default function DashboardPage() {
       {/* Manage staff — owner only (the API re-checks this server-side) */}
       {isAdmin && <ManageStaff />}
 
-      <div className={`grid gap-6 ${isAdmin ? "lg:grid-cols-2" : ""}`}>
+      <div className={`grid grid-cols-1 gap-6 ${isAdmin ? "lg:grid-cols-2" : ""}`}>
         {isAdmin && (
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
+          <div className="rounded-lg border bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">
                 Added vs sold <span className="text-sm font-normal text-gray-400">· by {chart.unit}</span>
@@ -439,7 +457,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="rounded-lg border bg-white p-5 shadow-sm">
+        <div className="rounded-lg border bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">
               {actType === "added" ? "Added sarees" : actType === "sold" ? "Sold sarees" : "Activity"}
@@ -467,7 +485,7 @@ export default function DashboardPage() {
               <select
                 value={actWho}
                 onChange={(e) => setActWho(e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm text-gray-600"
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-base text-gray-600 md:text-sm"
                 aria-label="Filter by person"
               >
                 <option value="all">Everyone</option>
@@ -531,9 +549,9 @@ export default function DashboardPage() {
 
 function Stat({ label, value, sub, accent, href }: { label: string; value: number | string; sub?: string; accent?: string; href?: string }) {
   const body = (
-    <div className="h-full rounded-lg border bg-white p-4 shadow-sm transition hover:shadow-md">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${accent || ""}`}>{value}</p>
+    <div className="h-full rounded-lg border bg-white p-3 shadow-sm transition hover:shadow-md sm:p-4">
+      <p className="text-xs font-medium leading-tight text-gray-500">{label}</p>
+      <p className={`mt-1 break-words text-xl font-bold sm:text-2xl ${accent || ""}`}>{value}</p>
       {sub ? <p className="text-[11px] text-gray-400">{sub}</p> : null}
     </div>
   );
